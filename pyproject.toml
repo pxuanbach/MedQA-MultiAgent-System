@@ -1,0 +1,44 @@
+[project]
+name = "pi-agents"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.14.0",
+    "click>=8.4.2",
+    "fastparquet>=2026.5.0",
+    "ipykernel>=7.3.0",
+    "matplotlib>=3.11.0",
+    "pandas>=3.0.4",
+    "pytest>=9.1.1",
+    "rank-bm25>=0.2.2",
+    "seaborn>=0.13.2",
+    "sentence-transformers>=5.6.0",
+    "spacy>=3.8.14",
+    "torch==2.11.0",
+    "torchaudio==2.11.0",
+    "torchvision==0.26.0",
+    "tqdm>=4.68.3",
+]
+[project.optional-dependencies]
+cuda = [
+    "torch==2.11.0",
+    "torchvision==0.26.0",
+    "torchaudio==2.11.0",
+]
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", extra = "cuda" },
+]
+torchvision = [
+    { index = "pytorch-cu128", extra = "cuda" },
+]
+torchaudio = [
+    { index = "pytorch-cu128", extra = "cuda" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

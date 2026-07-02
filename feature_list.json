@@ -1,0 +1,214 @@
+{
+  "project": "medqa-multiagent-rag-memory",
+  "description": "Multi-agent MedQA system with RAG and cross-session memory — LM Studio local models, English textbooks, markdown-based memory, multi-source evaluation",
+  "features": [
+    {
+      "id": "deps-langchain",
+      "name": "Add LangChain Dependencies",
+      "description": "Add langchain, langchain-chroma, langchain-text-splitters, and langchain-openai to pyproject.toml for RAG and LM Studio integration",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "lmstudio-connectivity",
+      "name": "LM Studio Connectivity Check",
+      "description": "Verify LM Studio is running at localhost:1234, list available models via GET /v1/models, and confirm embedding endpoint works",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "lmstudio-chat-model",
+      "name": "LM Studio Chat Model Integration",
+      "description": "Configure init_chat_model with model_provider='openai', base_url='http://localhost:1234/v1', and verify model name from LM Studio",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "lmstudio-embeddings",
+      "name": "LM Studio Embeddings Integration",
+      "description": "Configure OpenAIEmbeddings with base_url='http://localhost:1234/v1' and verify embedding model produces vectors",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "textbook-loader",
+      "name": "English Textbook Loader",
+      "description": "Create TextLoader pipeline for 17 English textbooks in datasets/textbooks/en/*.txt with metadata (source filename, page)",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "text-splitter",
+      "name": "Recursive Text Splitter",
+      "description": "Configure RecursiveCharacterTextSplitter with chunk_size=768, overlap=128 for medical textbook content",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "vector-store-init",
+      "name": "Chroma Vector Store Initialization",
+      "description": "Initialize Chroma vector store with collection_name='medqa_textbooks', embedding_function=LM Studio embeddings, persist_directory='./vector_store/'",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "textbook-indexing",
+      "name": "Textbook Indexing Pipeline",
+      "description": "One-time indexing of all 17 English textbooks: Load -> Split -> Embed -> Store in Chroma",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "retrieve-tool",
+      "name": "Retrieve Medical Context Tool",
+      "description": "Create retrieve_medical_context tool wrapping vectorstore.similarity_search(query, k=5) with source attribution formatting",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "memory-manager",
+      "name": "Memory Manager (Markdown-based)",
+      "description": "Create MemoryManager class with session/, concepts/, agents/ directories for cross-session markdown file persistence",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "memory-conversation",
+      "name": "Memory: Save Conversation",
+      "description": "Implement save_conversation() to append Q&A to session/{session_id}/conversation.md with sources consulted",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "memory-reasoning",
+      "name": "Memory: Save Reasoning",
+      "description": "Implement save_reasoning() to write agent reasoning notes to session/{session_id}/reasoning.md",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "memory-session-load",
+      "name": "Memory: Load Session Context",
+      "description": "Implement load_session_context() to read all markdown files for a given session_id",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "memory-concepts",
+      "name": "Memory: Concept Knowledge Base",
+      "description": "Implement save_concept() and retrieve_concepts() for medical concept KB in concepts/ directory",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "state-vector-store",
+      "name": "DeepAgentState: Add Vector Store",
+      "description": "Extend DeepAgentState in state.py to include vector_store field for RAG retrieval",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "state-memory",
+      "name": "DeepAgentState: Add Memory Manager",
+      "description": "Extend DeepAgentState in state.py to include memory field for MemoryManager instance",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "agent-query-processor",
+      "name": "Agent: Query Processor",
+      "description": "Define query_processor agent prompt and role — decomposes MedQA question into search tasks, uses retrieve_medical_context tool",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "agent-rag-searcher",
+      "name": "Agent: RAG Searcher",
+      "description": "Define rag_searcher agent prompt and role — performs vector similarity search, gathers context from multiple textbooks",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "agent-answer-generator",
+      "name": "Agent: Answer Generator",
+      "description": "Define answer_generator agent prompt and role — synthesizes retrieved textbook content into coherent medical answer",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "agent-evaluator",
+      "name": "Agent: Evaluator",
+      "description": "Define evaluator agent prompt and role — checks answer consistency against multiple textbook sources, provides confidence score",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "evaluator-multi-source",
+      "name": "Evaluator: Multi-Source Consistency Check",
+      "description": "Implement cross-source verification: evaluator checks if answer agrees across >=2 textbook sources, flags contradictions",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "evaluator-confidence",
+      "name": "Evaluator: Confidence Scoring",
+      "description": "Implement confidence scoring (1-10) based on source agreement level (high/medium/low) in evaluator output",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "agent-registration",
+      "name": "Sub-Agent Registration",
+      "description": "Register all 4 agents (query_processor, rag_searcher, answer_generator, evaluator) in task_tool.py subagent registry",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "memory-persistence",
+      "name": "Memory: Cross-Session Persistence",
+      "description": "Verify memory persists across sessions — conversation.md, reasoning.md, and concepts/ survive agent restart",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "rag-retrieval-quality",
+      "name": "RAG: Retrieval Quality Check",
+      "description": "Verify retrieved context is relevant to MedQA questions — test similarity_search returns medically relevant chunks",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+    {
+      "id": "integration-e2e",
+      "name": "End-to-End Integration Test",
+      "description": "Full pipeline test: question -> query_processor -> rag_searcher -> answer_generator -> evaluator -> memory save",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    }
+  ]
+}
