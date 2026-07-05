@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel
@@ -28,26 +27,27 @@ def create_rewriter_agent(
 
     Args:
         model: The shared chat model to use for all agents.
-        tools: Optional list of tools to pass to create_agent.
-               If None, an empty list is used.
+        tools: Ignored (present for API compatibility with future multi-tool agents).
 
     Returns:
-        A ``retrieve_documents`` tool wrapped via ``create_agent``.
+        A ``retrieve_documents`` tool that rewrites MedQA questions.
     """
-    if tools is None:
-        tools = []
-
-    agent = create_agent(
-        model=model,
-        system_prompt=_load_rewriter_prompt(),
-        tools=tools,
-    )
 
     @tool
     def retrieve_documents(question: str) -> str:
-        """Rewrite a medical exam question for optimal textbook retrieval."""
-        result = agent.invoke({"messages": [{"role": "user", "content": question}]})
-        # Return only the text of the final agent message
-        return result["messages"][-1].content
+        """Rewrite a medical exam question for optimal textbook retrieval.
+
+        Args:
+            question: The original MedQA-style question (multiple choice or free response).
+
+        Returns:
+            The rewritten query string — clean, search-friendly, clinically precise.
+        """
+        system_prompt = _load_rewriter_prompt()
+        response = model.with_structured_output(RewrittenQuery).invoke([
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
+        ])
+        return response.query
 
     return retrieve_documents
