@@ -13,3 +13,4 @@ datasets/
 .pytest_cache
 
 *.parquet
+.chroma_db/
