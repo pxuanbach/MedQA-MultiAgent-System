@@ -44,6 +44,8 @@
 - Completed:
   - `agents-rewriter` — created `src/medqa_multi_agents/agents/rewriter.py` with `RewrittenQuery` Pydantic model, `create_rewriter_agent()`, and `@tool retrieve_documents`; verified: tool name='retrieve_documents', `RewrittenQuery.query` field, clean imports
   - `agents/__init__.py` — exports `RewrittenQuery` and `create_rewriter_agent`
-- Evidence: `uv run python test_rewriter.py` → all checks passed
-- Files updated: src/medqa_multi_agents/agents/{rewriter.py,__init__.py}, feature_list.json, test_rewriter.py
+- Evidence: `uv run pytest tests/test_rewriter.py -v` → 11/11 passed (11.24s)
+- Bugs found & fixed: `create_agent` tool-calling protocol returns empty with qwen3-8b → switched to `model.with_structured_output` directly inside `@tool`
+- Files updated: src/medqa_multi_agents/agents/{rewriter.py,__init__.py}, tests/test_rewriter.py, feature_list.json
+- Commits: `e86d812`
 - Next best step: Continue with `agents-retriever` (create retriever agent module)

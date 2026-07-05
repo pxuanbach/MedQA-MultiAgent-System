@@ -48,5 +48,4 @@ Before ending a session:
 1. Update `claude-progress.md`.
 2. Update `feature_list.json`.
 3. Record any unresolved risk or blocker.
-4. Commit with a descriptive message once the work is in a safe state.
-5. Leave the repo clean enough for the next session to run `./init.ps1` immediately.
+4. Leave the repo clean enough for the next session to run `./init.ps1` immediately.

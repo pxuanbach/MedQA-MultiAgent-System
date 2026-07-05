@@ -45,5 +45,4 @@ and the result is recorded.
 1. Update the progress log.
 2. Update the feature state.
 3. Record what is still broken or unverified.
-4. Commit once the repository is safe to resume.
-5. Leave a clean restart path for the next session.
+4. Leave a clean restart path for the next session.

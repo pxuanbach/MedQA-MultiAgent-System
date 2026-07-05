@@ -39,7 +39,7 @@
       "name": "Create rewriter agent",
       "description": "Create src/medqa_multi_agents/agents/rewriter.py. Use create_agent with the shared model and system_prompt loaded from prompts/rewriter.md. The rewriter agent uses with_structured_output(RewrittenQuery) where RewrittenQuery is a Pydantic BaseModel with a query str field. Wrap as @tool retrieve_documents that takes a question string and returns the rewritten query. Tool returns only the final text response.",
       "status": "passing",
-      "evidence": "Created agents/rewriter.py with RewrittenQuery (Pydantic BaseModel), create_rewriter_agent(), and @tool retrieve_documents; module verified: RewrittenQuery.query field, tool name='retrieve_documents', all imports clean",
+      "evidence": "11/11 pytest tests pass (tests/test_rewriter.py): schema/unit (no LM Studio), direct with_structured_output, and end-to-end @tool invoke; qwen3-8b LM Studio confirmed working; rewriter uses model.with_structured_output directly inside @tool (create_agent wrapper removed — broke qwen3-8b tool-calling)",
       "testedAt": "2026-07-05"
     },
     {
