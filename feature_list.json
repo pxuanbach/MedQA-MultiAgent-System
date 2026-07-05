@@ -11,201 +11,106 @@
       "testedAt": null
     },
     {
-      "id": "lmstudio-connectivity",
-      "name": "LM Studio Connectivity Check",
-      "description": "Verify LM Studio is running at localhost:1234, list available models via GET /v1/models, and confirm embedding endpoint works",
+      "id": "dir-structure",
+      "name": "Create source directory structure",
+      "description": "Create src/medqa_multi_agents/ with: prompts/ (markdown prompt files), vectorstore/ (ChromaDB module), agents/ (agent-wrapped nodes), memory/ (short-term and long-term memory modules), and scripts/ (ingestion). Each sub-package gets an __init__.py.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "lmstudio-chat-model",
-      "name": "LM Studio Chat Model Integration",
-      "description": "Configure init_chat_model with model_provider='openai', base_url='http://localhost:1234/v1', and verify model name from LM Studio",
+      "id": "prompts-markdown",
+      "name": "Extract all prompts into markdown files",
+      "description": "Create src/medqa_multi_agents/prompts/ with 5 markdown files: supervisor.md (supervisor agent system prompt — decides routing), rewriter.md (rewriter agent — uses with_structured_output(RewrittenQuery) to produce structured rewritten query), retriever.md (retriever agent — searches Chroma and returns context), answerer.md (answerer agent — synthesizes answer from context), and evaluator.md (evaluator agent — returns verdict: correct / incorrect / incomplete + reasoning). Each prompt is loaded as a string at runtime — no hard-coded prompt strings in Python code. get_latest_news is excluded (not needed for MedQA textbook Q&A).",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "lmstudio-embeddings",
-      "name": "LM Studio Embeddings Integration",
-      "description": "Configure OpenAIEmbeddings with base_url='http://localhost:1234/v1' and verify embedding model produces vectors",
+      "id": "vectorstore-chroma",
+      "name": "Build persistent ChromaDB vector store module",
+      "description": "Implement src/medqa_multi_agents/vectorstore/ with: (1) embedding.py — SentenceTransformerEmbeddings wrapper compatible with LangChain Chroma; (2) db.py — Chroma client pointing to a local persist_directory; (3) ingest.py — splits textbooks from datasets/MedQA-USMLE/textbooks/en/ (all 18 .txt files) into chunks and upserts into Chroma. Provides a load_vectorstore() function that returns the Chroma instance.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "textbook-loader",
-      "name": "English Textbook Loader",
-      "description": "Create TextLoader pipeline for 17 English textbooks in datasets/textbooks/en/*.txt with metadata (source filename, page)",
+      "id": "agents-rewriter",
+      "name": "Create rewriter agent",
+      "description": "Create src/medqa_multi_agents/agents/rewriter.py. Use create_agent with the shared model and system_prompt loaded from prompts/rewriter.md. The rewriter agent uses with_structured_output(RewrittenQuery) where RewrittenQuery is a Pydantic BaseModel with a query str field. Wrap as @tool retrieve_documents that takes a question string and returns the rewritten query. Tool returns only the final text response.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "text-splitter",
-      "name": "Recursive Text Splitter",
-      "description": "Configure RecursiveCharacterTextSplitter with chunk_size=768, overlap=128 for medical textbook content",
+      "id": "agents-retriever",
+      "name": "Create retriever agent",
+      "description": "Create src/medqa_multi_agents/agents/retriever.py. Use create_agent with the shared model and system_prompt loaded from prompts/retriever.md. The retriever is a full agent — it decides search strategy, invokes the Chroma retriever internally, and returns context strings. Wrap as @tool retrieve_context that takes a rewritten query and returns context. Tool returns only the final text response.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "vector-store-init",
-      "name": "Chroma Vector Store Initialization",
-      "description": "Initialize Chroma vector store with collection_name='medqa_textbooks', embedding_function=LM Studio embeddings, persist_directory='./vector_store/'",
+      "id": "agents-answerer",
+      "name": "Create answerer agent",
+      "description": "Create src/medqa_multi_agents/agents/answerer.py. Use create_agent with the shared model and system_prompt loaded from prompts/answerer.md. Wrap as @tool answer_question that takes context and original question, returns the generated answer text. Tool returns only the final text response.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "textbook-indexing",
-      "name": "Textbook Indexing Pipeline",
-      "description": "One-time indexing of all 17 English textbooks: Load -> Split -> Embed -> Store in Chroma",
+      "id": "evaluator-agent",
+      "name": "Create evaluator agent with revision loop",
+      "description": "Add an evaluator agent that judges the answerer agent's answer for correctness and completeness. Implemented in src/medqa_multi_agents/agents/evaluator.py: create_agent with prompts/evaluator.md, wrapped as @tool evaluate_answer. The supervisor workflow routes answerer → evaluator. If evaluator returns 'incorrect' or 'incomplete', supervisor issues a 'reconsider' directive to answerer with the evaluator's reasoning, forming a revision loop. Maximum 2 loops (configurable) to prevent infinite loops. Produces a verdict string (correct / incorrect / incomplete) and reasoning text.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "retrieve-tool",
-      "name": "Retrieve Medical Context Tool",
-      "description": "Create retrieve_medical_context tool wrapping vectorstore.similarity_search(query, k=5) with source attribution formatting",
+      "id": "supervisor-workflow-core",
+      "name": "Implement supervisor workflow core with revision loop (no memory)",
+      "description": "Refactor src/medqa_multi_agents/__init__.py to use the supervisor pattern with evaluator revision loop using LangGraph StateGraph + conditional edges. supervisor_agent uses tools [retrieve_documents, answer_question, evaluate_answer]. State fields: question (str), rewritten_query (str), documents (list[str]), draft_answer (str), evaluation_result (str), revision_count (int), evaluation_reasoning (str), final_answer (str). Execution: (1) START → supervisor decides next, (2) supervisor calls retrieve_documents → rewrite_query → retrieve (3-way), (3) supervisor calls answer_question, (4) supervisor calls evaluate_answer, (5) conditional edge: if verdict is 'incorrect'/'incomplete' and revision_count < MAX_REVISION_LOOPS → route back to answerer with evaluator feedback; else → END. MAX_REVISION_LOOPS defaults to 2. Load prompts from prompts/*.md at module load time. Use Chroma vectorstore from vectorstore/db.py. Shared model instance for all agents. NO checkpointer, NO store, NO recall_memory tool. Workflow invoked identically: workflow.invoke({'question': '...'}). Final answer printed to stdout. This feature is completable and testable independently of any memory features.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "memory-manager",
-      "name": "Memory Manager (Markdown-based)",
-      "description": "Create MemoryManager class with session/, concepts/, agents/ directories for cross-session markdown file persistence",
+      "id": "supervisor-workflow-memory",
+      "name": "Wire memory into supervisor workflow and update supervisor prompt",
+      "description": "Update src/medqa_multi_agents/__init__.py to wire both memory systems via the single ENABLE_MEMORY flag on top of supervisor-workflow-core. When ENABLE_MEMORY=true: (1) StateGraph compiled with checkpointer for short-term memory; (2) recall_memory tool added to supervisor tool list for long-term memory; (3) prompts/supervisor.md updated so the supervisor knows when to call recall_memory to check for past relevant sessions before answering, and when to write new sessions to the store after final answer. When ENABLE_MEMORY=false: no checkpointer, no store, no recall_memory tool — completely disabled. Depends on supervisor-workflow-core, memory-short-term, and memory-long-term all being complete.",
+      "status": "pending",
+      "evidence": null,
+      "testedAt": null
+    },
+
+    {
+      "id": "ingest-script",
+      "name": "Add textbook ingestion script",
+      "description": "Create src/medqa_multi_agents/scripts/ingest_textbooks.py as a runnable entry point. Loads all 18 English textbooks from datasets/MedQA-USMLE/textbooks/en/, splits with RecursiveCharacterTextSplitter (chunk_size=1000, chunk_overlap=200), embeds via SentenceTransformer, and upserts into the persistent Chroma DB. Run once to populate the vector store before the workflow is used.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "memory-conversation",
-      "name": "Memory: Save Conversation",
-      "description": "Implement save_conversation() to append Q&A to session/{session_id}/conversation.md with sources consulted",
+      "id": "memory-short-term",
+      "name": "Add short-term memory (checkpointer) to supervisor graph",
+      "description": "Add thread-level persistence to the supervisor StateGraph using a checkpointer. When ENABLE_MEMORY=true (default), the compiled StateGraph is compiled with a PostgresCheckpointer (or InMemorySaver for dev). Each MedQA question session uses a unique thread_id so the full revision loop state (draft_answer, evaluation_result, revision_count, messages) is persisted across turns. When ENABLE_MEMORY=false, no checkpointer is attached — the graph is stateless per invocation.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "memory-reasoning",
-      "name": "Memory: Save Reasoning",
-      "description": "Implement save_reasoning() to write agent reasoning notes to session/{session_id}/reasoning.md",
+      "id": "memory-long-term",
+      "name": "Add long-term memory (store) with dynamic namespace",
+      "description": "Add cross-session memory to the supervisor using LangGraph store (PostgresStore when ENABLE_MEMORY=true, otherwise None). A recall_memory tool wrapped from a memory_agent is callable by the supervisor: given a question, it extracts keywords dynamically from the query text at runtime to build a namespace tuple, then searches the store for any past Q&A sessions under that namespace. When ENABLE_MEMORY=false, the recall_memory tool is excluded entirely from the supervisor tool list and no store is created — memory is completely inaccessible. Implemented in src/medqa_multi_agents/memory/ as a self-contained module.",
       "status": "pending",
       "evidence": null,
       "testedAt": null
     },
     {
-      "id": "memory-session-load",
-      "name": "Memory: Load Session Context",
-      "description": "Implement load_session_context() to read all markdown files for a given session_id",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "memory-concepts",
-      "name": "Memory: Concept Knowledge Base",
-      "description": "Implement save_concept() and retrieve_concepts() for medical concept KB in concepts/ directory",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "state-vector-store",
-      "name": "DeepAgentState: Add Vector Store",
-      "description": "Extend DeepAgentState in state.py to include vector_store field for RAG retrieval",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "state-memory",
-      "name": "DeepAgentState: Add Memory Manager",
-      "description": "Extend DeepAgentState in state.py to include memory field for MemoryManager instance",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "agent-query-processor",
-      "name": "Agent: Query Processor",
-      "description": "Define query_processor agent prompt and role — decomposes MedQA question into search tasks, uses retrieve_medical_context tool",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "agent-rag-searcher",
-      "name": "Agent: RAG Searcher",
-      "description": "Define rag_searcher agent prompt and role — performs vector similarity search, gathers context from multiple textbooks",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "agent-answer-generator",
-      "name": "Agent: Answer Generator",
-      "description": "Define answer_generator agent prompt and role — synthesizes retrieved textbook content into coherent medical answer",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "agent-evaluator",
-      "name": "Agent: Evaluator",
-      "description": "Define evaluator agent prompt and role — checks answer consistency against multiple textbook sources, provides confidence score",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "evaluator-multi-source",
-      "name": "Evaluator: Multi-Source Consistency Check",
-      "description": "Implement cross-source verification: evaluator checks if answer agrees across >=2 textbook sources, flags contradictions",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "evaluator-confidence",
-      "name": "Evaluator: Confidence Scoring",
-      "description": "Implement confidence scoring (1-10) based on source agreement level (high/medium/low) in evaluator output",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "agent-registration",
-      "name": "Sub-Agent Registration",
-      "description": "Register all 4 agents (query_processor, rag_searcher, answer_generator, evaluator) in task_tool.py subagent registry",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "memory-persistence",
-      "name": "Memory: Cross-Session Persistence",
-      "description": "Verify memory persists across sessions — conversation.md, reasoning.md, and concepts/ survive agent restart",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "rag-retrieval-quality",
-      "name": "RAG: Retrieval Quality Check",
-      "description": "Verify retrieved context is relevant to MedQA questions — test similarity_search returns medically relevant chunks",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
-    },
-    {
-      "id": "integration-e2e",
-      "name": "End-to-End Integration Test",
-      "description": "Full pipeline test: question -> query_processor -> rag_searcher -> answer_generator -> evaluator -> memory save",
+      "id": "memory-integration",
+      "name": "Wire memory into supervisor workflow and update supervisor prompt",
+      "description": "Update src/medqa_multi_agents/__init__.py to wire both memory systems via the single ENABLE_MEMORY flag. When ENABLE_MEMORY=true: (1) StateGraph compiled with checkpointer for short-term memory; (2) recall_memory tool added to supervisor tool list for long-term memory; (3) prompts/supervisor.md updated so the supervisor knows when to call recall_memory to check for past relevant sessions before answering, and when to write new sessions to the store after final answer. When ENABLE_MEMORY=false: no checkpointer, no store, no recall_memory tool — completely disabled.",
       "status": "pending",
       "evidence": null,
       "testedAt": null

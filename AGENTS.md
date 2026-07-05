@@ -11,7 +11,7 @@ Before writing code:
 3. Read `claude-progress.md` for the latest verified state and next step.
 4. Read `feature_list.json` and choose the highest-priority unfinished feature.
 5. Review recent commits with `git log --oneline -5`.
-6. Run `./init.sh`.
+6. Run `./init.ps1`.
 7. Run the required smoke or end-to-end verification before starting new work.
 
 If baseline verification is already failing, fix that first. Do not stack new feature work on top of a broken starting state.
@@ -29,7 +29,7 @@ If baseline verification is already failing, fix that first. Do not stack new fe
 - `goal.md`: project goal and expected output
 - `feature_list.json`: source of truth for feature state
 - `claude-progress.md`: session log and current verified status
-- `init.sh`: standard startup and verification path
+- `init.ps1`: standard startup and verification path
 - `session-handoff.md`: optional compact handoff for larger sessions
 
 ## Definition Of Done
@@ -49,4 +49,4 @@ Before ending a session:
 2. Update `feature_list.json`.
 3. Record any unresolved risk or blocker.
 4. Commit with a descriptive message once the work is in a safe state.
-5. Leave the repo clean enough for the next session to run `./init.sh` immediately.
+5. Leave the repo clean enough for the next session to run `./init.ps1` immediately.

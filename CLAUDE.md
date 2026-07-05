@@ -9,11 +9,12 @@ verification over speed.
 At the start of every session:
 
 1. Run `pwd` and confirm you are in the expected repository root.
-2. Read `claude-progress.md`.
-3. Read `feature_list.json`.
-4. Review recent commits with `git log --oneline -5`.
-5. Run `./init.sh`.
-6. Check whether the baseline smoke or end-to-end path is already broken.
+2. Read `goal.md` to understand the current project goal and expected output.
+3. Read `claude-progress.md`.
+4. Read `feature_list.json`.
+5. Review recent commits with `git log --oneline -5`.
+6. Run `./init.ps1`.
+7. Check whether the baseline smoke or end-to-end path is already broken.
 
 Then select exactly one unfinished feature and work only on that feature until
 you either verify it or document why it is blocked.
@@ -28,9 +29,10 @@ you either verify it or document why it is blocked.
 
 ## Required Files
 
+- `goal.md`: project goal and expected output
 - `feature_list.json`
 - `claude-progress.md`
-- `init.sh`
+- `init.ps1`
 - `session-handoff.md` when a compact handoff is useful
 
 ## Completion Gate
