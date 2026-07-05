@@ -7,11 +7,12 @@ This repository is designed for long-running coding-agent work. The goal is not 
 Before writing code:
 
 1. Confirm the working directory with `pwd`.
-2. Read `claude-progress.md` for the latest verified state and next step.
-3. Read `feature_list.json` and choose the highest-priority unfinished feature.
-4. Review recent commits with `git log --oneline -5`.
-5. Run `./init.sh`.
-6. Run the required smoke or end-to-end verification before starting new work.
+2. Read `goal.md` to understand the current project goal and expected output.
+3. Read `claude-progress.md` for the latest verified state and next step.
+4. Read `feature_list.json` and choose the highest-priority unfinished feature.
+5. Review recent commits with `git log --oneline -5`.
+6. Run `./init.sh`.
+7. Run the required smoke or end-to-end verification before starting new work.
 
 If baseline verification is already failing, fix that first. Do not stack new feature work on top of a broken starting state.
 
@@ -25,6 +26,7 @@ If baseline verification is already failing, fix that first. Do not stack new fe
 
 ## Required Artifacts
 
+- `goal.md`: project goal and expected output
 - `feature_list.json`: source of truth for feature state
 - `claude-progress.md`: session log and current verified status
 - `init.sh`: standard startup and verification path
