@@ -46,9 +46,9 @@
       "id": "agents-retriever",
       "name": "Create retriever agent",
       "description": "Create src/medqa_multi_agents/agents/retriever.py. Use create_agent with the shared model and system_prompt loaded from prompts/retriever.md. The retriever is a full agent — it decides search strategy, invokes the Chroma retriever internally, and returns context strings. Wrap as @tool retrieve_context that takes a rewritten query and returns context. Tool returns only the final text response.",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
+      "status": "passing",
+      "evidence": "7/7 pytest tests pass (tests/test_retriever.py): schema/unit (no LM Studio), tool signature, and end-to-end Chroma integration; vectorstore cached at module level to avoid GPU OOM on re-load; qwen3-8b LM Studio confirmed working",
+      "testedAt": "2026-07-05"
     },
     {
       "id": "agents-answerer",
