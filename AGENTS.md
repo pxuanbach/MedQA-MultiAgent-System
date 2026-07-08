@@ -19,6 +19,7 @@ If baseline verification is already failing, fix that first. Do not stack new fe
 ## Working Rules
 
 - Work on one feature at a time.
+- Always check `AGENTS.md` in subdirectories for local rules and conventions.
 - Do not mark a feature complete just because code was added.
 - Keep changes within the selected feature scope unless a blocker forces a narrow supporting fix.
 - Do not silently change verification rules during implementation.

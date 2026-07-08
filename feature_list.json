@@ -54,25 +54,25 @@
       "id": "agents-answerer",
       "name": "Create answerer agent",
       "description": "Create src/medqa_multi_agents/agents/answerer.py. Use create_agent with the shared model and system_prompt loaded from prompts/answerer.md. Wrap as @tool answer_question that takes context and original question, returns the generated answer text. Tool returns only the final text response.",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
+      "status": "passing",
+      "evidence": "7/7 pytest tests pass (tests/test_answerer.py): schema/unit (no LM Studio), tool signature, and end-to-end integration; model.with_structured_output(Answer) inside @tool (same qwen3-8b-compatible pattern as rewriter/retriever); answerer tool takes context+question as separate args",
+      "testedAt": "2026-07-07"
     },
     {
       "id": "evaluator-agent",
       "name": "Create evaluator agent with revision loop",
       "description": "Add an evaluator agent that judges the answerer agent's answer for correctness and completeness. Implemented in src/medqa_multi_agents/agents/evaluator.py: create_agent with prompts/evaluator.md, wrapped as @tool evaluate_answer. The supervisor workflow routes answerer → evaluator. If evaluator returns 'incorrect' or 'incomplete', supervisor issues a 'reconsider' directive to answerer with the evaluator's reasoning, forming a revision loop. Maximum 2 loops (configurable) to prevent infinite loops. Produces a verdict string (correct / incorrect / incomplete) and reasoning text.",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
+      "status": "passing",
+      "evidence": "8/8 pytest tests pass (tests/test_evaluator.py): schema/unit (no LM Studio), tool signature, and end-to-end integration with LM Studio; model.with_structured_output(EvaluationResult) inside @tool (same qwen3-8b-compatible pattern as rewriter/retriever/answerer); evaluator tool takes draft_answer+question+context as separate args; verdict+reasoning returned as JSON string",
+      "testedAt": "2026-07-07"
     },
     {
       "id": "supervisor-workflow-core",
       "name": "Implement supervisor workflow core with revision loop (no memory)",
       "description": "Refactor src/medqa_multi_agents/__init__.py to use the supervisor pattern with evaluator revision loop using LangGraph StateGraph + conditional edges. supervisor_agent uses tools [retrieve_documents, answer_question, evaluate_answer]. State fields: question (str), rewritten_query (str), documents (list[str]), draft_answer (str), evaluation_result (str), revision_count (int), evaluation_reasoning (str), final_answer (str). Execution: (1) START → supervisor decides next, (2) supervisor calls retrieve_documents → rewrite_query → retrieve (3-way), (3) supervisor calls answer_question, (4) supervisor calls evaluate_answer, (5) conditional edge: if verdict is 'incorrect'/'incomplete' and revision_count < MAX_REVISION_LOOPS → route back to answerer with evaluator feedback; else → END. MAX_REVISION_LOOPS defaults to 2. Load prompts from prompts/*.md at module load time. Use Chroma vectorstore from vectorstore/db.py. Shared model instance for all agents. NO checkpointer, NO store, NO recall_memory tool. Workflow invoked identically: workflow.invoke({'question': '...'}). Final answer printed to stdout. This feature is completable and testable independently of any memory features.",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
+      "status": "passing",
+      "evidence": "16/16 pytest tests pass (tests/test_supervisor.py): State schema, routing logic, node functions, graph compilation, end-to-end invoke with mock tools and revision loop boundary; 49/49 total tests pass (full suite); revision_count incremented in _node_answer when verdict is incorrect/incomplete; MAX_REVISION_LOOPS=2; workflow and invoke exported",
+      "testedAt": "2026-07-07"
     },
     {
       "id": "supervisor-workflow-memory",

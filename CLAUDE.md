@@ -1,8 +1,7 @@
 # CLAUDE.md
 
 You are working in a repository designed for long-running implementation work.
-Prioritize reliable completion, continuity across sessions, and explicit
-verification over speed.
+Prioritize reliable completion, continuity across sessions, and explicit verification over speed.
 
 ## Operating Loop
 
@@ -16,12 +15,12 @@ At the start of every session:
 6. Run `./init.ps1`.
 7. Check whether the baseline smoke or end-to-end path is already broken.
 
-Then select exactly one unfinished feature and work only on that feature until
-you either verify it or document why it is blocked.
+Then select exactly one unfinished feature and work only on that feature until you either verify it or document why it is blocked.
 
 ## Rules
 
 - One active feature at a time.
+- Always check `AGENTS.md` in subdirectories for local rules and conventions.
 - Do not claim completion without runnable evidence.
 - Do not rewrite the feature list to hide unfinished work.
 - Do not remove or weaken tests just to make the task look complete.
@@ -37,8 +36,7 @@ you either verify it or document why it is blocked.
 
 ## Completion Gate
 
-A feature can move to `passing` only after the required verification succeeds
-and the result is recorded.
+A feature can move to `passing` only after the required verification succeeds and the result is recorded.
 
 ## Before You Stop
 

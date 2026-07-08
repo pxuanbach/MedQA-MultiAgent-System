@@ -8,7 +8,6 @@ import sys
 sys.path.insert(0, 'src')
 
 import pytest
-from langchain_openai import ChatOpenAI
 
 from medqa_multi_agents.agents.retriever import (
     RetrievedContext,
@@ -21,24 +20,6 @@ from medqa_multi_agents.agents.retriever import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def lmstudio_model():
-    """Connect to LM Studio (qwen3-8b). Skip all tests in this module if unavailable."""
-    model = ChatOpenAI(
-        base_url="http://localhost:1234/v1",
-        api_key="lm-studio",
-        model="qwen3-8b",
-        temperature=0,
-        max_tokens=512,
-    )
-    # Smoke-check the connection
-    try:
-        model.invoke("hello")
-    except Exception as e:
-        pytest.skip(f"LM Studio not available: {e}")
-    return model
-
-
 @pytest.fixture
 def retriever_tool(lmstudio_model):
     return create_retriever_agent(model=lmstudio_model)
@@ -47,6 +28,7 @@ def retriever_tool(lmstudio_model):
 # ---------------------------------------------------------------------------
 # Schema / unit tests  (no LM Studio required)
 # ---------------------------------------------------------------------------
+
 
 class TestRetrieverSchema:
     def test_retrieved_context_has_context_field(self):

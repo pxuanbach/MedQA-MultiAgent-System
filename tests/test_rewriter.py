@@ -8,7 +8,6 @@ import sys
 sys.path.insert(0, 'src')
 
 import pytest
-from langchain_openai import ChatOpenAI
 
 from medqa_multi_agents.agents.rewriter import (
     RewrittenQuery,
@@ -21,24 +20,6 @@ from medqa_multi_agents.agents.rewriter import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def lmstudio_model():
-    """Connect to LM Studio (qwen3-8b). Skip all tests in this module if unavailable."""
-    model = ChatOpenAI(
-        base_url="http://localhost:1234/v1",
-        api_key="lm-studio",
-        model="qwen3-8b",
-        temperature=0,
-        max_tokens=256,
-    )
-    # Smoke-check the connection
-    try:
-        model.invoke("hello")
-    except Exception as e:
-        pytest.skip(f"LM Studio not available: {e}")
-    return model
-
-
 @pytest.fixture
 def rewriter_tool(lmstudio_model):
     return create_rewriter_agent(model=lmstudio_model)
@@ -47,6 +28,7 @@ def rewriter_tool(lmstudio_model):
 # ---------------------------------------------------------------------------
 # Schema / unit tests  (no LM Studio required)
 # ---------------------------------------------------------------------------
+
 
 class TestRewriterSchema:
     def test_rewritten_query_has_query_field(self):
