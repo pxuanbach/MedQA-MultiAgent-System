@@ -6,7 +6,7 @@
 - Standard startup path: `./init.ps1` (not executable on this macOS checkout; `pwsh` unavailable; `bash init.sh` is the local equivalent but depends on `uv`)
 - Standard verification path: `uv run pytest`
 - Current highest-priority unfinished feature: `memory-short-term`
-- Current blocker: baseline verification is blocked because `uv` was absent initially, then `uv sync --all-groups` required network approval to download Python 3.12/dependencies and that approval was rejected. No pytest run has completed in this session.
+- Current blocker: macOS local verification can run from source `.venv` only with `uv run --no-sync` because the lockfile wants CUDA torch (`torch==2.11.0+cu128`), which has no macOS arm64 wheel. Windows verification is still needed before marking `memory-short-term` passing.
 
 ## Session Log
 
@@ -124,6 +124,14 @@
   - Added a `Workflow` facade so `workflow.invoke({"question": "..."})` still works by injecting default `revision_count` and a generated `thread_id`
   - Extended `invoke(question, thread_id=None)` for callers that want a stable short-term memory thread
   - Added focused supervisor tests for direct workflow invocation and thread config behavior
-- Verification: not run. Required `uv run pytest` remains blocked until the project environment can be synced.
-- Files updated: `src/medqa_multi_agents/__init__.py`, `src/medqa_multi_agents/memory/{__init__.py,short_term.py}`, `tests/test_supervisor.py`, `feature_list.json`, `claude-progress.md`
-- Next best step: Approve/run `UV_CACHE_DIR=/private/tmp/uv-cache UV_PYTHON_INSTALL_DIR=/private/tmp/uv-python python3 -m uv sync --all-groups`, then run `python3 -m uv run pytest tests/test_supervisor.py -v`. Only if that passes should `memory-short-term` move to `passing`.
+- Follow-up on macOS:
+  - Created source-local `.venv` with `UV_PROJECT_ENVIRONMENT=.venv`
+  - `uv sync --all-groups` downloaded Python 3.12.2 but failed because `torch==2.11.0+cu128` has no macOS arm64 wheel
+  - `uv sync --all-groups --no-install-package torch --no-install-package torchvision --no-install-package torchaudio` succeeded for the rest of the environment
+  - Initial supervisor pytest failed on `ModuleNotFoundError: torch` during import; fixed by lazy-importing `torch` inside `load_embeddings()` and falling back to CPU if torch is not installed
+- Verification:
+  - `UV_PROJECT_ENVIRONMENT=.venv python3 -m uv run --no-sync pytest tests/test_supervisor.py -v` → 20/20 passed
+  - `UV_PROJECT_ENVIRONMENT=.venv python3 -m uv run --no-sync pytest -v` → 32 passed, 21 skipped
+  - Standard `uv run pytest` is still not validated on macOS because it tries to resync CUDA torch from the lockfile
+- Files updated: `src/medqa_multi_agents/__init__.py`, `src/medqa_multi_agents/memory/{__init__.py,short_term.py}`, `src/medqa_multi_agents/vectorstore/embedding.py`, `tests/test_supervisor.py`, `feature_list.json`, `claude-progress.md`
+- Next best step: On Windows/CUDA machine, run `uv sync --all-groups`, then `uv run pytest tests/test_supervisor.py -v` and `uv run pytest -v`. If both pass, move `memory-short-term` to `passing`.

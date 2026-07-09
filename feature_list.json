@@ -96,7 +96,7 @@
       "name": "Add short-term memory (checkpointer) to supervisor graph",
       "description": "Add thread-level persistence to the supervisor StateGraph using a checkpointer. When ENABLE_MEMORY=true (default), the compiled StateGraph is compiled with a PostgresCheckpointer (or InMemorySaver for dev). Each MedQA question session uses a unique thread_id so the full revision loop state (draft_answer, evaluation_result, revision_count, messages) is persisted across turns. When ENABLE_MEMORY=false, no checkpointer is attached — the graph is stateless per invocation.",
       "status": "pending",
-      "evidence": "Draft implementation added in Session 008: memory/short_term.py provides ENABLE_MEMORY, InMemorySaver checkpointer factory, and thread config helper; supervisor graph compiles with checkpointer when enabled and workflow.invoke({'question': ...}) injects revision_count/thread_id through a facade. Not passing yet: baseline/pytest verification blocked because uv sync requires Python 3.12/dependency download approval.",
+      "evidence": "Draft implementation added in Session 008: memory/short_term.py provides ENABLE_MEMORY, InMemorySaver checkpointer factory, and thread config helper; supervisor graph compiles with checkpointer when enabled and workflow.invoke({'question': ...}) injects revision_count/thread_id through a facade. macOS .venv verification: tests/test_supervisor.py 20/20 passed and full pytest 32 passed, 21 skipped using uv run --no-sync after syncing without CUDA torch packages. Not passing yet: standard uv run pytest still needs Windows/CUDA verification because the lockfile requires torch==2.11.0+cu128, which has no macOS arm64 wheel.",
       "testedAt": null
     },
     {
