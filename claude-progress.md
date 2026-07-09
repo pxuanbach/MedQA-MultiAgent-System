@@ -2,11 +2,11 @@
 
 ## Current Verified State
 
-- Repository root: `D:\Dev\MedQA-MultiAgent-System`
-- Standard startup path: `.\init.ps1`
+- Repository root: `/Users/harryhoang/Learning/MLSercurity/MedQA-MultiAgent-System`
+- Standard startup path: `./init.ps1` (not executable on this macOS checkout; `pwsh` unavailable; `bash init.sh` is the local equivalent but depends on `uv`)
 - Standard verification path: `uv run pytest`
-- Current highest-priority unfinished feature: `supervisor-workflow-memory`
-- Current blocker: none
+- Current highest-priority unfinished feature: `memory-short-term`
+- Current blocker: baseline verification is blocked because `uv` was absent initially, then `uv sync --all-groups` required network approval to download Python 3.12/dependencies and that approval was rejected. No pytest run has completed in this session.
 
 ## Session Log
 
@@ -105,3 +105,25 @@
 - Evidence: `uv run pytest tests/test_supervisor.py -v` → 16/16 passed; full suite `uv run pytest -v` → 49/49 passed
 - Files updated: src/medqa_multi_agents/__init__.py (complete rewrite), tests/test_supervisor.py (new), feature_list.json, claude-progress.md
 - Next best step: Continue with `supervisor-workflow-memory` (add checkpointer + recall_memory tool behind ENABLE_MEMORY flag)
+
+### Session 008 — 2026-07-09
+
+- Goal: Continue memory work, starting with `memory-short-term` because `supervisor-workflow-memory` depends on both short-term and long-term memory modules.
+- Startup status:
+  - `pwd` confirmed repository root: `/Users/harryhoang/Learning/MLSercurity/MedQA-MultiAgent-System`
+  - Read `goal.md`, `claude-progress.md`, `feature_list.json`, root `AGENTS.md`, and `tests/AGENTS.md`
+  - `git log --oneline -5` reviewed; latest commit: `58b916b Implement answerer and evaluator agents with tests; refactor supervisor workflow`
+  - `./init.ps1` failed: file is not executable; `pwsh -File init.ps1` failed: `pwsh` not installed
+  - `bash init.sh` failed before verification: `uv: command not found`
+  - Installed `uv` with `python3 -m pip install --user uv`
+  - `python3 -m uv sync --all-groups` failed under sandbox due blocked `~/.cache/uv`; rerun with temp uv dirs failed due network DNS restriction while downloading Python 3.12; network approval for the same sync was rejected
+  - `python3 -m pytest --fixtures tests/` could not run because pytest is not installed outside the project environment
+- Drafted (not verified):
+  - Added `src/medqa_multi_agents/memory/` with short-term memory helpers: `ENABLE_MEMORY`, `get_checkpointer()`, and `build_thread_config()`
+  - Wired supervisor graph compilation to use `InMemorySaver` checkpointer when `ENABLE_MEMORY` is enabled
+  - Added a `Workflow` facade so `workflow.invoke({"question": "..."})` still works by injecting default `revision_count` and a generated `thread_id`
+  - Extended `invoke(question, thread_id=None)` for callers that want a stable short-term memory thread
+  - Added focused supervisor tests for direct workflow invocation and thread config behavior
+- Verification: not run. Required `uv run pytest` remains blocked until the project environment can be synced.
+- Files updated: `src/medqa_multi_agents/__init__.py`, `src/medqa_multi_agents/memory/{__init__.py,short_term.py}`, `tests/test_supervisor.py`, `feature_list.json`, `claude-progress.md`
+- Next best step: Approve/run `UV_CACHE_DIR=/private/tmp/uv-cache UV_PYTHON_INSTALL_DIR=/private/tmp/uv-python python3 -m uv sync --all-groups`, then run `python3 -m uv run pytest tests/test_supervisor.py -v`. Only if that passes should `memory-short-term` move to `passing`.

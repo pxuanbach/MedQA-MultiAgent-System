@@ -2,14 +2,14 @@
 
 Public API
 ----------
-``workflow``    : compiled LangGraph StateGraph (supervisor orchestrator)
-``invoke({...})``: convenience wrapper around ``workflow.invoke``
+``workflow``    : supervisor workflow facade
+``invoke(...)`` : convenience wrapper around ``workflow.invoke``
 """
 from __future__ import annotations
 
 import json
 import os
-from typing import Annotated, TypedDict
+from typing import Any, TypedDict
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
@@ -19,6 +19,7 @@ from medqa_multi_agents.agents.answerer import create_answerer_agent
 from medqa_multi_agents.agents.evaluator import create_evaluator_agent
 from medqa_multi_agents.agents.retriever import create_retriever_agent
 from medqa_multi_agents.agents.rewriter import create_rewriter_agent
+from medqa_multi_agents.memory import ENABLE_MEMORY, build_thread_config, get_checkpointer
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -164,29 +165,64 @@ def _route_after_evaluate(state: State) -> str:
 # ---------------------------------------------------------------------------
 # Graph construction
 # ---------------------------------------------------------------------------
-builder = StateGraph(State)
 
-# Nodes
-builder.add_node("rewrite_retrieve", _node_rewrite_retrieve)
-builder.add_node("answer", _node_answer)
-builder.add_node("evaluate", _node_evaluate)
-builder.add_node("finalize", _node_finalize)
 
-# Edges
-builder.add_edge(START, "rewrite_retrieve")
-builder.add_edge("rewrite_retrieve", "answer")
-builder.add_edge("answer", "evaluate")
-builder.add_conditional_edges("evaluate", _route_after_evaluate)
-builder.add_edge("finalize", END)
+def _build_graph():
+    builder = StateGraph(State)
 
-workflow = builder.compile()
+    # Nodes
+    builder.add_node("rewrite_retrieve", _node_rewrite_retrieve)
+    builder.add_node("answer", _node_answer)
+    builder.add_node("evaluate", _node_evaluate)
+    builder.add_node("finalize", _node_finalize)
+
+    # Edges
+    builder.add_edge(START, "rewrite_retrieve")
+    builder.add_edge("rewrite_retrieve", "answer")
+    builder.add_edge("answer", "evaluate")
+    builder.add_conditional_edges("evaluate", _route_after_evaluate)
+    builder.add_edge("finalize", END)
+
+    checkpointer = get_checkpointer()
+    if checkpointer is None:
+        return builder.compile()
+    return builder.compile(checkpointer=checkpointer)
+
+
+def _prepare_initial_state(input_: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+    initial_state = dict(input_)
+    thread_id = initial_state.pop("thread_id", None)
+    initial_state.setdefault("revision_count", 0)
+    return initial_state, thread_id
+
+
+class Workflow:
+    """Thin facade that preserves workflow.invoke({...}) with memory enabled."""
+
+    def __init__(self, graph):
+        self._graph = graph
+
+    @property
+    def nodes(self):
+        return self._graph.nodes
+
+    def invoke(self, input_: dict[str, Any], config: dict[str, Any] | None = None, **kwargs):
+        initial_state, thread_id = _prepare_initial_state(input_)
+        next_config = build_thread_config(config, thread_id=thread_id)
+        return self._graph.invoke(initial_state, config=next_config, **kwargs)
+
+    def __getattr__(self, name: str):
+        return getattr(self._graph, name)
+
+
+workflow = Workflow(_build_graph())
 
 # ---------------------------------------------------------------------------
 # Public invoke helper
 # ---------------------------------------------------------------------------
 
 
-def invoke(question: str) -> str:
+def invoke(question: str, *, thread_id: str | None = None) -> str:
     """Answer a MedQA question end-to-end through the supervisor workflow.
 
     Parameters
@@ -199,11 +235,14 @@ def invoke(question: str) -> str:
     str
         The final answer text.
     """
-    result = workflow.invoke({
+    initial_state = {
         "question": question,
         "revision_count": 0,
-    })
+    }
+    if thread_id is not None:
+        initial_state["thread_id"] = thread_id
+    result = workflow.invoke(initial_state)
     return result["final_answer"]
 
 
-__all__ = ["workflow", "invoke"]
+__all__ = ["ENABLE_MEMORY", "workflow", "invoke"]

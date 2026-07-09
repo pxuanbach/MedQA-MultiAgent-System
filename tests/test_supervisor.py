@@ -242,10 +242,9 @@ def test_node_finalize():
 
 
 def test_workflow_compiles_without_error():
-    """The compiled graph is a StateGraph and has the expected nodes."""
+    """The workflow exposes the expected graph nodes."""
     from medqa_multi_agents import workflow
 
-    # Should be a compiled StateGraph
     assert hasattr(workflow, "nodes")
     # Nodes: rewrite_retrieve, answer, evaluate, finalize
     node_names = set(workflow.nodes.keys())
@@ -262,6 +261,17 @@ def test_workflow_invoke_end_to_end_with_mock_tools(mock_tools):
     result = invoke("What is the mechanism of action of ACE inhibitors?")
     assert isinstance(result, str)
     assert len(result) > 0
+
+
+def test_workflow_direct_invoke_with_mock_tools(mock_tools):
+    """workflow.invoke keeps the public {'question': ...} call shape."""
+    from medqa_multi_agents import workflow
+
+    result = workflow.invoke({"question": "What is the mechanism of action of ACE inhibitors?"})
+
+    assert isinstance(result, dict)
+    assert result["final_answer"] == "ACE inhibitors are first-line..."
+    assert result["revision_count"] == 0
 
 
 def test_workflow_invoke_with_revision_loop(mock_tools):
@@ -299,3 +309,38 @@ def test_workflow_exported():
     import medqa_multi_agents as pkg
 
     assert "workflow" in pkg.__all__
+
+
+def test_enable_memory_exported():
+    """ENABLE_MEMORY is the public switch for optional memory."""
+    import medqa_multi_agents as pkg
+
+    assert "ENABLE_MEMORY" in pkg.__all__
+    assert isinstance(pkg.ENABLE_MEMORY, bool)
+
+
+def test_build_thread_config_preserves_existing_thread_id():
+    """Short-term memory config does not overwrite caller-supplied thread_id."""
+    from medqa_multi_agents.memory.short_term import ENABLE_MEMORY, build_thread_config
+
+    config = {"configurable": {"thread_id": "case-123", "checkpoint_ns": "medqa"}}
+    result = build_thread_config(config)
+
+    if not ENABLE_MEMORY:
+        assert result is config
+        return
+    assert result is not config
+    assert result["configurable"]["thread_id"] == "case-123"
+    assert result["configurable"]["checkpoint_ns"] == "medqa"
+
+
+def test_build_thread_config_generates_thread_id_when_enabled():
+    """Memory-enabled graph invocations get a unique thread_id by default."""
+    from medqa_multi_agents.memory.short_term import ENABLE_MEMORY, build_thread_config
+
+    if not ENABLE_MEMORY:
+        pytest.skip("ENABLE_MEMORY is disabled")
+
+    result = build_thread_config()
+
+    assert result["configurable"]["thread_id"].startswith("medqa-")
