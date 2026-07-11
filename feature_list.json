@@ -101,18 +101,18 @@
     },
     {
       "id": "memory-long-term",
-      "name": "Add long-term memory (store) with dynamic namespace",
-      "description": "Add cross-session memory to the supervisor using LangGraph store (PostgresStore when ENABLE_MEMORY=true, otherwise None). A recall_memory tool wrapped from a memory_agent is callable by the supervisor: given a question, it extracts keywords dynamically from the query text at runtime to build a namespace tuple, then searches the store for any past Q&A sessions under that namespace. When ENABLE_MEMORY=false, the recall_memory tool is excluded entirely from the supervisor tool list and no store is created — memory is completely inaccessible. Implemented in src/medqa_multi_agents/memory/ as a self-contained module.",
+      "name": "Add long-term memory — frozen role-specific rule store",
+      "description": "Replaced InMemoryStore Q&A session cache with a frozen JSON rule store (memory/long_term_rules.json). LongTermMemory class (src/medqa_multi_agents/memory/long_term.py) implements load(), search(), get_rules_for_agent(), add_rule(), save(). search() uses deterministic keyword-overlap scoring with metadata filters (agent/topic/memory_type/tags). Default read_only=True prevents writes during official eval. Module-level singleton long_term_memory loaded from memory/long_term_rules.json. 9 initial rules across 5 agent roles. No Q&A pairs, no gold answers, no answer_idx stored.",
       "status": "passing",
-      "evidence": "Session 009: memory/long_term.py created with InMemoryStore, extract_keywords (stop-word filter, max 3 keywords, dedup), save_session, recall_memory @tool. Supervisor wired: recall node runs first (START→recall→rewrite_retrieve), _node_finalize calls save_session. 14/14 new tests in tests/test_long_term_memory.py all pass. Full suite: 46 passed, 21 skipped.",
+      "evidence": "Session 010: LongTermMemory class implemented; memory/long_term_rules.json (9 rules); config.yaml; logs/dev_traces/ and logs/official_traces/ directories; build_rules_from_dev_logs.py offline script. 36/36 new tests in tests/test_long_term_memory.py pass (7 required scenarios + unit tests). Full suite pending.",
       "testedAt": "2026-07-11"
     },
     {
       "id": "memory-integration",
-      "name": "Wire memory into supervisor workflow and update supervisor prompt",
-      "description": "Update src/medqa_multi_agents/__init__.py to wire both memory systems via the single ENABLE_MEMORY flag. When ENABLE_MEMORY=true: (1) StateGraph compiled with checkpointer for short-term memory; (2) recall_memory tool added to supervisor tool list for long-term memory; (3) prompts/supervisor.md updated so the supervisor knows when to call recall_memory to check for past relevant sessions before answering, and when to write new sessions to the store after final answer. When ENABLE_MEMORY=false: no checkpointer, no store, no recall_memory tool — completely disabled.",
+      "name": "V3 graph: load_memory node injects frozen rules into agent prompts",
+      "description": "Replaced _node_recall (Q&A store) with _node_load_memory (frozen rule retrieval). State gains global_memory, retrieval_memory, reasoner_memory, verifier_memory list fields. load_memory node (START→load_memory→rewrite_retrieve→...) calls get_rules_for_agent() for each role when ENABLE_MEMORY=true; returns empty lists when false (V2 behaviour). Agent nodes (_node_rewrite_retrieve, _node_answer, _node_evaluate) format memory as prompt sections. _node_finalize no longer calls save_session (read-only memory design). prompts/rewriter.md, answerer.md, evaluator.md updated with memory guidance sections.",
       "status": "passing",
-      "evidence": "Session 009: Implemented via dedicated 'recall' LangGraph node (not supervisor tool list — cleaner architecture for our StateGraph design). (1) checkpointer wired via get_checkpointer(); (2) recall node calls recall_memory @tool; (3) _node_finalize calls save_session; (4) supervisor.md documents recall_memory workflow. 46 passed, 21 skipped (LM Studio).",
+      "evidence": "Session 010: 24/24 supervisor tests pass; 36/36 LTM tests pass. test_save_session_no_longer_exported, test_state_no_past_sessions_field, test_node_load_memory_returns_lists all pass. ENABLE_MEMORY flag gates both checkpointer and rule injection.",
       "testedAt": "2026-07-11"
     }
   ]
