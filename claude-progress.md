@@ -3,11 +3,11 @@
 ## Current Verified State
 
 - Repository root: `E:\MyStudy\MLSercurity\MedQA-MultiAgent-System`
-- Standard startup path: `pwsh -File init.ps1` (requires `uv` on PATH; install via `powershell -ExecutionPolicy Bypass -Command "Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression"` then add `C:\Users\abc\.local\bin` to PATH)
+- Standard startup path: `pwsh -File init.ps1` (requires `uv` on PATH)
 - Standard verification path: `$env:PATH = "C:\Users\abc\.local\bin;" + $env:PATH; uv run pytest`
-- **All features: PASSING** — the full dependency chain is complete (deps-langchain → ... → memory-integration)
-- Current blocker: **None** — all 12 features are now passing
-- Next best step: Project goal achieved. Optional enhancements: PostgreSQL-backed checkpointer/store for production, end-to-end LM Studio smoke test, or packaging.
+- **All features: PASSING** — long-term memory fully refactored to frozen rule store
+- Current blocker: **None**
+- Next best step: Optional enhancements — PostgreSQL-backed checkpointer for production, end-to-end LM Studio smoke test, evaluation benchmark runner, V0/V1/V4 variant implementations.
 
 ## Session Log
 
@@ -164,3 +164,34 @@
 - Files updated: `src/medqa_multi_agents/memory/{long_term.py,__init__.py}`, `src/medqa_multi_agents/__init__.py`, `tests/{test_long_term_memory.py,test_supervisor.py}`, `feature_list.json`, `claude-progress.md`
 - All 12 features now **passing**. Project goal achieved.
 
+### Session 010 — 2026-07-11
+
+- Goal: Refactor long-term memory from InMemoryStore Q&A session cache to frozen role-specific rule store (per spec §1–§18)
+- Design decision: `ENABLE_MEMORY` flag continues to gate both the LangGraph checkpointer (short-term) and the rule injection into the graph (long-term). Rules always read from frozen JSON; writes blocked at runtime.
+- Completed:
+  - **`memory/long_term_rules.json`**: Created frozen rule store with 9 initial rules across 5 agent roles (global, retrieval_planner, reasoner, verifier, finalizer). No Q&A pairs, no gold answers, no answer_idx.
+  - **`config.yaml`**: Added memory configuration with official/dev sections enforcing read_only=True.
+  - **`logs/dev_traces/`, `logs/official_traces/`**: Created log directories with .gitkeep files.
+  - **`src/medqa_multi_agents/memory/long_term.py`**: Complete rewrite — `LongTermMemory` class with `load()`, `search()` (keyword-overlap scoring + metadata filters), `get_rules_for_agent()`, `add_rule()` (raises RuntimeError in read-only), `save()` (raises RuntimeError in read-only), `format_rules_for_prompt()`. Module-level singleton `long_term_memory` auto-loaded at import.
+  - **`src/medqa_multi_agents/memory/__init__.py`**: Updated exports — removed `save_session`, `recall_memory`, `get_store`; added `LongTermMemory`, `long_term_memory`, `REQUIRED_FIELDS`.
+  - **`src/medqa_multi_agents/__init__.py`**: V3 supervisor workflow refactored:
+    - `State`: removed `past_sessions`; added `global_memory`, `retrieval_memory`, `reasoner_memory`, `verifier_memory` fields
+    - `_node_load_memory` replaces `_node_recall` (no Q&A store, no write-back)
+    - `_node_rewrite_retrieve`, `_node_answer`, `_node_evaluate` inject formatted memory rules into prompts when `ENABLE_MEMORY=true`
+    - `_node_finalize` no longer calls `save_session` (frozen memory)
+    - Graph: START → load_memory → rewrite_retrieve → answer → evaluate → finalize → END
+  - **Prompts**: `rewriter.md`, `answerer.md`, `evaluator.md` updated with memory guidance sections.
+  - **`src/medqa_multi_agents/memory/build_rules_from_dev_logs.py`**: Offline-only analysis script (not called during eval).
+  - **`tests/test_long_term_memory.py`**: Full rewrite — 36 tests covering all 7 required scenarios from spec.
+  - **`tests/test_supervisor.py`**: Updated for new State fields — 24 tests.
+  - **`README.md`**: New file documenting all memory concepts, variants, dev trace workflow, and leakage prevention.
+  - **`feature_list.json`**: Updated memory-long-term and memory-integration feature entries.
+- Bugs found & fixed:
+  - Windows PowerShell `Set-Content` writes UTF-8 BOM → fixed by re-writing JSON via `uv run python` and using `utf-8-sig` encoding in `load()`.
+  - `importlib.reload` approach in state integration tests was fragile → replaced with `monkeypatch.setattr(pkg, "ENABLE_MEMORY", ...)`.
+- Evidence:
+  - `uv run pytest tests/test_long_term_memory.py -v` → **36/36 passed**
+  - `uv run pytest tests/test_supervisor.py -v` → **24/24 passed**
+  - `uv run pytest -v` → **72 passed, 21 skipped (LM Studio), 0 failed (56s)**
+- Files updated: `memory/long_term_rules.json`, `config.yaml`, `logs/`, `src/medqa_multi_agents/memory/{long_term.py,__init__.py}`, `src/medqa_multi_agents/__init__.py`, `src/medqa_multi_agents/prompts/{rewriter,answerer,evaluator}.md`, `src/medqa_multi_agents/memory/build_rules_from_dev_logs.py`, `tests/{test_long_term_memory.py,test_supervisor.py}`, `README.md`, `feature_list.json`, `claude-progress.md`
+- Next best step: Optional — implement V0/V1/V4 variants, end-to-end LM Studio benchmark run, or PostgreSQL-backed persistence.
