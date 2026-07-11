@@ -2,11 +2,12 @@
 
 ## Current Verified State
 
-- Repository root: `/Users/harryhoang/Learning/MLSercurity/MedQA-MultiAgent-System`
-- Standard startup path: `./init.ps1` (not executable on this macOS checkout; `pwsh` unavailable; `bash init.sh` is the local equivalent but depends on `uv`)
-- Standard verification path: `uv run pytest`
-- Current highest-priority unfinished feature: `memory-short-term`
-- Current blocker: macOS local verification can run from source `.venv` only with `uv run --no-sync` because the lockfile wants CUDA torch (`torch==2.11.0+cu128`), which has no macOS arm64 wheel. Windows verification is still needed before marking `memory-short-term` passing.
+- Repository root: `E:\MyStudy\MLSercurity\MedQA-MultiAgent-System`
+- Standard startup path: `pwsh -File init.ps1` (requires `uv` on PATH; install via `powershell -ExecutionPolicy Bypass -Command "Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression"` then add `C:\Users\abc\.local\bin` to PATH)
+- Standard verification path: `$env:PATH = "C:\Users\abc\.local\bin;" + $env:PATH; uv run pytest`
+- **All features: PASSING** — the full dependency chain is complete (deps-langchain → ... → memory-integration)
+- Current blocker: **None** — all 12 features are now passing
+- Next best step: Project goal achieved. Optional enhancements: PostgreSQL-backed checkpointer/store for production, end-to-end LM Studio smoke test, or packaging.
 
 ## Session Log
 
@@ -135,3 +136,31 @@
   - Standard `uv run pytest` is still not validated on macOS because it tries to resync CUDA torch from the lockfile
 - Files updated: `src/medqa_multi_agents/__init__.py`, `src/medqa_multi_agents/memory/{__init__.py,short_term.py}`, `src/medqa_multi_agents/vectorstore/embedding.py`, `tests/test_supervisor.py`, `feature_list.json`, `claude-progress.md`
 - Next best step: On Windows/CUDA machine, run `uv sync --all-groups`, then `uv run pytest tests/test_supervisor.py -v` and `uv run pytest -v`. If both pass, move `memory-short-term` to `passing`.
+
+### Session 009 — 2026-07-11
+
+- Goal: Windows/CUDA baseline verification for `memory-short-term`, then implement `memory-long-term` + `memory-integration`
+- Startup:
+  - `uv` was not installed → installed via `Invoke-RestMethod https://astral.sh/uv/install.ps1` to `C:\Users\abc\.local\bin`
+  - `uv sync --all-groups` → downloaded 182 packages including `torch==2.11.0+cu128` (2.6 GiB); CUDA confirmed on RTX 5060 Ti
+  - Baseline: `uv run pytest tests/test_supervisor.py -v` → **20/20 passed**; `uv run pytest -v` → **32 passed, 21 skipped** → `memory-short-term` marked **passing**
+- Completed: `memory-long-term`
+  - Created `src/medqa_multi_agents/memory/long_term.py`:
+    - `InMemoryStore` singleton via `get_store()` (disabled when `ENABLE_MEMORY=false`)
+    - `extract_keywords(text)` — alpha tokens, ≥4 chars, stop-word filtered, max 3 unique → namespace `("medqa", kw1, kw2, kw3)`
+    - `save_session(question, answer, ...)` — puts completed Q&A to store under keyword namespace
+    - `recall_memory` `@tool` — searches store by namespace, formats past sessions for LLM
+  - Updated `memory/__init__.py` to re-export all long-term symbols
+  - Wired into supervisor `__init__.py`:
+    - New `recall` node: `START → recall → rewrite_retrieve` (calls `_recall_memory_tool`, stores result in `state["past_sessions"]`)
+    - `_node_finalize` calls `save_session` (only when `ENABLE_MEMORY=true`)
+    - `State` gained `past_sessions: str` field
+  - Created `tests/test_long_term_memory.py` — 14 tests (unit + integration, integration auto-skips if InMemoryStore unavailable)
+  - Updated `tests/test_supervisor.py` — added `past_sessions` to State dicts, patched `_recall_memory_tool` + `save_session` in `mock_tools` fixture and revision-loop test, updated node count assertion
+- Completed: `supervisor-workflow-memory` and `memory-integration` — both marked passing (same goal achieved via dedicated recall node architecture)
+- Evidence:
+  - `uv run pytest tests/test_long_term_memory.py tests/test_supervisor.py -v` → **34/34 passed (0.90s)**
+  - `uv run pytest -v` → **46 passed, 21 skipped (56s)** — all 21 skips are LM Studio integration tests (no server running)
+- Files updated: `src/medqa_multi_agents/memory/{long_term.py,__init__.py}`, `src/medqa_multi_agents/__init__.py`, `tests/{test_long_term_memory.py,test_supervisor.py}`, `feature_list.json`, `claude-progress.md`
+- All 12 features now **passing**. Project goal achieved.
+

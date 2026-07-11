@@ -17,13 +17,17 @@ import pytest
 @pytest.fixture
 def mock_tools():
     """Patch all four agent tools so nodes can be tested without LM Studio."""
-    with patch("medqa_multi_agents._get_tools") as mock_get_tools:
+    with patch("medqa_multi_agents._get_tools") as mock_get_tools, \
+         patch("medqa_multi_agents._recall_memory_tool") as mock_recall, \
+         patch("medqa_multi_agents.save_session") as mock_save:
         mock_get_tools.return_value = (
             _MockTool("hypertension treatment protocol"),  # retrieve_documents
             _MockTool("ACE inhibitors relax blood vessels..."),  # retrieve_context
             _MockTool("ACE inhibitors are first-line..."),  # answer_question
             _MockTool(json.dumps({"verdict": "correct", "reasoning": "Accurate answer."})),  # evaluate
         )
+        mock_recall.invoke = lambda input_: "No relevant past sessions found."
+        mock_save.return_value = None
         yield mock_get_tools
 
 
@@ -67,6 +71,7 @@ def test_state_has_required_fields():
         revision_count=0,
         evaluation_reasoning="",
         final_answer="",
+        past_sessions="",
     )
     assert state["question"] == "What causes hypertension?"
     assert state["revision_count"] == 0
@@ -92,6 +97,7 @@ def test_route_finalize_when_correct():
         "revision_count": 0,
         "evaluation_reasoning": "OK",
         "final_answer": "",
+        "past_sessions": "",
     }
     assert _route_after_evaluate(state) == "finalize"
 
@@ -109,6 +115,7 @@ def test_route_answer_when_incorrect():
         "revision_count": 0,
         "evaluation_reasoning": "Wrong.",
         "final_answer": "",
+        "past_sessions": "",
     }
     assert _route_after_evaluate(state) == "answer"
 
@@ -126,6 +133,7 @@ def test_route_answer_when_incomplete():
         "revision_count": 1,
         "evaluation_reasoning": "Missing detail.",
         "final_answer": "",
+        "past_sessions": "",
     }
     assert _route_after_evaluate(state) == "answer"
 
@@ -143,6 +151,7 @@ def test_route_finalize_at_max_revision_loops():
         "revision_count": MAX_REVISION_LOOPS,
         "evaluation_reasoning": "Wrong.",
         "final_answer": "",
+        "past_sessions": "",
     }
     assert _route_after_evaluate(state) == "finalize"
 
@@ -160,6 +169,7 @@ def test_route_finalize_correct_at_max_revision_loops():
         "revision_count": MAX_REVISION_LOOPS,
         "evaluation_reasoning": "Good.",
         "final_answer": "",
+        "past_sessions": "",
     }
     assert _route_after_evaluate(state) == "finalize"
 
@@ -230,8 +240,11 @@ def test_node_finalize():
         "revision_count": 0,
         "evaluation_reasoning": "OK",
         "final_answer": "",
+        "past_sessions": "",
     }
-    result = _node_finalize(state)
+    with patch("medqa_multi_agents.save_session") as mock_save:
+        mock_save.return_value = None
+        result = _node_finalize(state)
 
     assert result["final_answer"] == "ACE inhibitors block ACE."
 
@@ -246,8 +259,9 @@ def test_workflow_compiles_without_error():
     from medqa_multi_agents import workflow
 
     assert hasattr(workflow, "nodes")
-    # Nodes: rewrite_retrieve, answer, evaluate, finalize
+    # Nodes: recall, rewrite_retrieve, answer, evaluate, finalize
     node_names = set(workflow.nodes.keys())
+    assert "recall" in node_names
     assert "rewrite_retrieve" in node_names
     assert "answer" in node_names
     assert "evaluate" in node_names
@@ -277,13 +291,17 @@ def test_workflow_direct_invoke_with_mock_tools(mock_tools):
 def test_workflow_invoke_with_revision_loop(mock_tools):
     """Full workflow falls through to finalize after MAX_REVISION_LOOPS exhausted."""
     # Override eval tool to always return 'incorrect' so we test the loop boundary
-    with patch("medqa_multi_agents._get_tools") as mock_get_tools:
+    with patch("medqa_multi_agents._get_tools") as mock_get_tools, \
+         patch("medqa_multi_agents._recall_memory_tool") as mock_recall, \
+         patch("medqa_multi_agents.save_session") as mock_save:
         mock_get_tools.return_value = (
             _MockTool("hypertension"),  # retrieve_documents
             _MockTool("context..."),  # retrieve_context
             _MockTool("draft answer"),  # answer_question
             _MockTool(json.dumps({"verdict": "incorrect", "reasoning": "Bad."})),  # evaluate — always wrong
         )
+        mock_recall.invoke = lambda input_: "No relevant past sessions found."
+        mock_save.return_value = None
         from medqa_multi_agents import invoke
 
         result = invoke("What is the mechanism of action of ACE inhibitors?")

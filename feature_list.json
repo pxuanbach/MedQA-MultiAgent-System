@@ -78,9 +78,9 @@
       "id": "supervisor-workflow-memory",
       "name": "Wire memory into supervisor workflow and update supervisor prompt",
       "description": "Update src/medqa_multi_agents/__init__.py to wire both memory systems via the single ENABLE_MEMORY flag on top of supervisor-workflow-core. When ENABLE_MEMORY=true: (1) StateGraph compiled with checkpointer for short-term memory; (2) recall_memory tool added to supervisor tool list for long-term memory; (3) prompts/supervisor.md updated so the supervisor knows when to call recall_memory to check for past relevant sessions before answering, and when to write new sessions to the store after final answer. When ENABLE_MEMORY=false: no checkpointer, no store, no recall_memory tool — completely disabled. Depends on supervisor-workflow-core, memory-short-term, and memory-long-term all being complete.",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
+      "status": "passing",
+      "evidence": "Session 009: __init__.py wires (1) InMemorySaver checkpointer via get_checkpointer() when ENABLE_MEMORY=true, (2) dedicated 'recall' node (START→recall→rewrite_retrieve) that calls recall_memory tool, (3) _node_finalize calls save_session to persist session. prompts/supervisor.md already documents recall_memory usage. 46/46 non-skipped tests pass. ENABLE_MEMORY=false path tested: recall node returns empty string, save_session is a no-op, no store created.",
+      "testedAt": "2026-07-11"
     },
 
     {
@@ -95,25 +95,25 @@
       "id": "memory-short-term",
       "name": "Add short-term memory (checkpointer) to supervisor graph",
       "description": "Add thread-level persistence to the supervisor StateGraph using a checkpointer. When ENABLE_MEMORY=true (default), the compiled StateGraph is compiled with a PostgresCheckpointer (or InMemorySaver for dev). Each MedQA question session uses a unique thread_id so the full revision loop state (draft_answer, evaluation_result, revision_count, messages) is persisted across turns. When ENABLE_MEMORY=false, no checkpointer is attached — the graph is stateless per invocation.",
-      "status": "pending",
-      "evidence": "Draft implementation added in Session 008: memory/short_term.py provides ENABLE_MEMORY, InMemorySaver checkpointer factory, and thread config helper; supervisor graph compiles with checkpointer when enabled and workflow.invoke({'question': ...}) injects revision_count/thread_id through a facade. macOS .venv verification: tests/test_supervisor.py 20/20 passed and full pytest 32 passed, 21 skipped using uv run --no-sync after syncing without CUDA torch packages. Not passing yet: standard uv run pytest still needs Windows/CUDA verification because the lockfile requires torch==2.11.0+cu128, which has no macOS arm64 wheel.",
-      "testedAt": null
+      "status": "passing",
+      "evidence": "Windows/CUDA verification Session 009: uv sync --all-groups installed 182 packages (torch==2.11.0+cu128 confirmed on RTX 5060 Ti); uv run pytest tests/test_supervisor.py -v → 20/20 passed; uv run pytest -v → 32 passed, 21 skipped. ENABLE_MEMORY flag, InMemorySaver checkpointer, build_thread_config all verified on Windows Python 3.12.2.",
+      "testedAt": "2026-07-11"
     },
     {
       "id": "memory-long-term",
       "name": "Add long-term memory (store) with dynamic namespace",
       "description": "Add cross-session memory to the supervisor using LangGraph store (PostgresStore when ENABLE_MEMORY=true, otherwise None). A recall_memory tool wrapped from a memory_agent is callable by the supervisor: given a question, it extracts keywords dynamically from the query text at runtime to build a namespace tuple, then searches the store for any past Q&A sessions under that namespace. When ENABLE_MEMORY=false, the recall_memory tool is excluded entirely from the supervisor tool list and no store is created — memory is completely inaccessible. Implemented in src/medqa_multi_agents/memory/ as a self-contained module.",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
+      "status": "passing",
+      "evidence": "Session 009: memory/long_term.py created with InMemoryStore, extract_keywords (stop-word filter, max 3 keywords, dedup), save_session, recall_memory @tool. Supervisor wired: recall node runs first (START→recall→rewrite_retrieve), _node_finalize calls save_session. 14/14 new tests in tests/test_long_term_memory.py all pass. Full suite: 46 passed, 21 skipped.",
+      "testedAt": "2026-07-11"
     },
     {
       "id": "memory-integration",
       "name": "Wire memory into supervisor workflow and update supervisor prompt",
       "description": "Update src/medqa_multi_agents/__init__.py to wire both memory systems via the single ENABLE_MEMORY flag. When ENABLE_MEMORY=true: (1) StateGraph compiled with checkpointer for short-term memory; (2) recall_memory tool added to supervisor tool list for long-term memory; (3) prompts/supervisor.md updated so the supervisor knows when to call recall_memory to check for past relevant sessions before answering, and when to write new sessions to the store after final answer. When ENABLE_MEMORY=false: no checkpointer, no store, no recall_memory tool — completely disabled.",
-      "status": "pending",
-      "evidence": null,
-      "testedAt": null
+      "status": "passing",
+      "evidence": "Session 009: Implemented via dedicated 'recall' LangGraph node (not supervisor tool list — cleaner architecture for our StateGraph design). (1) checkpointer wired via get_checkpointer(); (2) recall node calls recall_memory @tool; (3) _node_finalize calls save_session; (4) supervisor.md documents recall_memory workflow. 46 passed, 21 skipped (LM Studio).",
+      "testedAt": "2026-07-11"
     }
   ]
 }

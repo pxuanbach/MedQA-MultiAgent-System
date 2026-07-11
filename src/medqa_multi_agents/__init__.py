@@ -19,7 +19,13 @@ from medqa_multi_agents.agents.answerer import create_answerer_agent
 from medqa_multi_agents.agents.evaluator import create_evaluator_agent
 from medqa_multi_agents.agents.retriever import create_retriever_agent
 from medqa_multi_agents.agents.rewriter import create_rewriter_agent
-from medqa_multi_agents.memory import ENABLE_MEMORY, build_thread_config, get_checkpointer
+from medqa_multi_agents.memory import (
+    ENABLE_MEMORY,
+    build_thread_config,
+    get_checkpointer,
+    recall_memory as _recall_memory_tool,
+    save_session,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -81,11 +87,20 @@ class State(TypedDict):
     revision_count: int
     evaluation_reasoning: str
     final_answer: str
+    past_sessions: str  # long-term memory recall result (empty string when disabled)
 
 
 # ---------------------------------------------------------------------------
 # Node implementations
 # ---------------------------------------------------------------------------
+
+
+def _node_recall(state: State) -> dict:
+    """Call recall_memory to surface relevant past sessions (only when ENABLE_MEMORY)."""
+    if not ENABLE_MEMORY:
+        return {"past_sessions": ""}
+    past = _recall_memory_tool.invoke({"question": state["question"]})
+    return {"past_sessions": past}
 
 
 def _node_rewrite_retrieve(state: State) -> dict:
@@ -139,8 +154,11 @@ def _node_evaluate(state: State) -> dict:
 
 
 def _node_finalize(state: State) -> dict:
-    """Promote draft_answer to final_answer."""
-    return {"final_answer": state["draft_answer"]}
+    """Promote draft_answer to final_answer and persist to long-term memory."""
+    final = state["draft_answer"]
+    if ENABLE_MEMORY:
+        save_session(state["question"], final)
+    return {"final_answer": final}
 
 
 # ---------------------------------------------------------------------------
@@ -171,13 +189,15 @@ def _build_graph():
     builder = StateGraph(State)
 
     # Nodes
+    builder.add_node("recall", _node_recall)
     builder.add_node("rewrite_retrieve", _node_rewrite_retrieve)
     builder.add_node("answer", _node_answer)
     builder.add_node("evaluate", _node_evaluate)
     builder.add_node("finalize", _node_finalize)
 
     # Edges
-    builder.add_edge(START, "rewrite_retrieve")
+    builder.add_edge(START, "recall")
+    builder.add_edge("recall", "rewrite_retrieve")
     builder.add_edge("rewrite_retrieve", "answer")
     builder.add_edge("answer", "evaluate")
     builder.add_conditional_edges("evaluate", _route_after_evaluate)
@@ -245,4 +265,4 @@ def invoke(question: str, *, thread_id: str | None = None) -> str:
     return result["final_answer"]
 
 
-__all__ = ["ENABLE_MEMORY", "workflow", "invoke"]
+__all__ = ["ENABLE_MEMORY", "workflow", "invoke", "save_session"]
