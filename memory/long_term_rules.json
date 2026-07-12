@@ -1,0 +1,136 @@
+[
+  {
+    "id": "global_001",
+    "agent": "global",
+    "memory_type": "procedural_rule",
+    "topic": "format",
+    "rule": "The final answer must contain exactly one option label: A, B, C, or D.",
+    "source": "manual_design",
+    "tags": [
+      "format",
+      "evaluation",
+      "invalid_response"
+    ],
+    "confidence": 1.0,
+    "created_at": "2026-07-01"
+  },
+  {
+    "id": "retrieval_001",
+    "agent": "retrieval_planner",
+    "memory_type": "retrieval_strategy",
+    "topic": "diagnosis",
+    "rule": "For diagnosis questions, include key symptoms, timeline, abnormal labs, imaging findings, and candidate diagnoses from the answer options in the retrieval query.",
+    "source": "manual_design",
+    "tags": [
+      "retrieval",
+      "diagnosis",
+      "query_reformulation"
+    ],
+    "confidence": 0.9,
+    "created_at": "2026-07-01"
+  },
+  {
+    "id": "retrieval_002",
+    "agent": "retrieval_planner",
+    "memory_type": "retrieval_strategy",
+    "topic": "pharmacology",
+    "rule": "For pharmacology questions, include drug class, mechanism of action, adverse effects, and medication timeline in the retrieval query.",
+    "source": "manual_design",
+    "tags": [
+      "retrieval",
+      "pharmacology",
+      "adverse_effects"
+    ],
+    "confidence": 0.9,
+    "created_at": "2026-07-01"
+  },
+  {
+    "id": "retrieval_003",
+    "agent": "retrieval_planner",
+    "memory_type": "retrieval_strategy",
+    "topic": "pathophysiology",
+    "rule": "For pathophysiology questions, search for the underlying mechanism, the affected organ system, and the downstream clinical consequences described in the vignette.",
+    "source": "manual_design",
+    "tags": [
+      "retrieval",
+      "pathophysiology",
+      "mechanism"
+    ],
+    "confidence": 0.85,
+    "created_at": "2026-07-01"
+  },
+  {
+    "id": "reasoner_001",
+    "agent": "reasoner",
+    "memory_type": "procedural_rule",
+    "topic": "general",
+    "rule": "Identify the core clinical mechanism before choosing an option. Do not select an option only because it is generally related to the disease area.",
+    "source": "manual_design",
+    "tags": [
+      "reasoning",
+      "mechanism",
+      "differential_diagnosis"
+    ],
+    "confidence": 0.9,
+    "created_at": "2026-07-01"
+  },
+  {
+    "id": "reasoner_002",
+    "agent": "reasoner",
+    "memory_type": "procedural_rule",
+    "topic": "pharmacology",
+    "rule": "When symptoms appear after starting a new medication, consider adverse drug effects before primary disease progression.",
+    "source": "manual_design",
+    "tags": [
+      "reasoning",
+      "pharmacology",
+      "medication_timeline",
+      "adverse_effects"
+    ],
+    "confidence": 0.85,
+    "created_at": "2026-07-01"
+  },
+  {
+    "id": "verifier_001",
+    "agent": "verifier",
+    "memory_type": "verifier_checklist",
+    "topic": "general",
+    "rule": "Do not approve an answer unless the explanation explicitly connects the key findings in the vignette to the selected option.",
+    "source": "manual_design",
+    "tags": [
+      "verification",
+      "evidence_alignment"
+    ],
+    "confidence": 0.9,
+    "created_at": "2026-07-01"
+  },
+  {
+    "id": "verifier_002",
+    "agent": "verifier",
+    "memory_type": "verifier_checklist",
+    "topic": "general",
+    "rule": "Check whether the selected option specifically explains the vignette better than the distractor options, not just whether it is medically plausible.",
+    "source": "manual_design",
+    "tags": [
+      "verification",
+      "distractor_elimination"
+    ],
+    "confidence": 0.9,
+    "created_at": "2026-07-01"
+  },
+  {
+    "id": "finalizer_001",
+    "agent": "finalizer",
+    "memory_type": "procedural_rule",
+    "topic": "format",
+    "rule": "Return exactly one final answer option and a short explanation. Do not include multiple candidate answers in the final output.",
+    "source": "manual_design",
+    "tags": [
+      "format",
+      "final_answer",
+      "invalid_response"
+    ],
+    "confidence": 1.0,
+    "created_at": "2026-07-01"
+  }
+]

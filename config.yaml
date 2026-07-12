@@ -1,0 +1,25 @@
+﻿# MedQA Multi-Agent System Configuration
+# =========================================
+# memory.long_term controls the frozen rule store.
+# official mode enforces read_only=true and allow_writes=false.
+# dev mode uses the same defaults (read_only=true) for safety.
+
+memory:
+  long_term:
+    enabled: true
+    path: "memory/long_term_rules.json"
+    read_only: true
+    retrieval_mode: "keyword"  # "keyword" (default) or "embedding" (not yet implemented)
+    top_k_per_agent: 3
+    use_metadata_filters: true
+
+official:
+  memory:
+    long_term:
+      read_only: true
+      allow_writes: false
+
+dev:
+  memory:
+    long_term:
+      read_only: true
