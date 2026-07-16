@@ -48,13 +48,11 @@ class TestRetrieverSchema:
 
 
 class TestRetrieverToolSignature:
-    def test_tool_name_is_retrieve_context(self, lmstudio_model):
+    def test_returns_runnable(self, lmstudio_model):
+        """create_retriever_agent returns a Runnable, not a BaseTool."""
+        from langchain_core.runnables import Runnable
         tool = create_retriever_agent(model=lmstudio_model)
-        assert tool.name == "retrieve_context"
-
-    def test_tool_description_mentions_retrieve(self, lmstudio_model):
-        tool = create_retriever_agent(model=lmstudio_model)
-        assert "retrieve" in tool.description.lower()
+        assert isinstance(tool, Runnable)
 
 
 # ---------------------------------------------------------------------------

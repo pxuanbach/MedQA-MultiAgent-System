@@ -17,6 +17,7 @@ class Answer(BaseModel):
     """Structured output schema for the answerer agent."""
 
     answer: str
+    reasoning: str = ""
 
 
 def create_answerer_agent(
@@ -53,6 +54,7 @@ def create_answerer_agent(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ])
-        return response.answer
+        import json
+        return json.dumps({"answer": response.answer, "reasoning": response.reasoning})
 
     return answer_question

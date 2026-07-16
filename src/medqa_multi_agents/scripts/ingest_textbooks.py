@@ -25,7 +25,7 @@ TEXTBOOK_DIR = _REPO_ROOT / "datasets" / "MedQA-USMLE" / "textbooks" / "en"
 # ── Chunking constants ───────────────────────────────────────────────────────────
 SENTENCES_PER_CHUNK = 10
 MIN_TOKEN_LENGTH    = 30
-BATCH_SIZE          = 5000  # Chroma max batch size
+BATCH_SIZE          = 500
 
 
 def _split_list(input_list: list, slice_size: int) -> list[list]:

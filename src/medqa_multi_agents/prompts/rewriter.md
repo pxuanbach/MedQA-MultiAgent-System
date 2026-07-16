@@ -12,7 +12,8 @@ Return a JSON object with the following structure:
 
 ```json
 {
-  "query": "<rewritten query string>"
+  "query": "<rewritten query string>",
+  "reasoning": "<brief explanation of how you reformulated the query and what clinical terms you prioritized>"
 }
 ```
 

@@ -70,3 +70,29 @@ deps-langchain → dir-structure → prompts-markdown → vectorstore-chroma
 ```
 
 All features currently **passing**. Next optional work: V0/V1/V4 variants, benchmark runner, PostgreSQL persistence.
+
+## Agent Definitions of Done
+
+**Rewriter Agent**
+- Rewrites MedQA questions into clinically precise search queries
+- Uses `model.with_structured_output` to produce structured `RewrittenQuery` output
+
+**Retriever Agent**
+- Uses vector search (ChromaDB) to retrieve relevant textbook chunks
+- Optionally queries long-term memory rule store to guide retrieval decisions
+- Synthesizes retrieved chunks into a coherent context string for the answerer
+
+**Answerer Agent**
+- Synthesizes draft answers using retrieved textbook context
+- Produces structured output with `Answer` schema (answer + reasoning)
+- Incorporates verifier feedback in revision loops up to `MAX_REVISION_LOOPS`
+
+**Evaluator Agent**
+- Judges draft answers on correctness, completeness, and evidence alignment
+- Issues verdict: `correct` | `incorrect` | `incomplete`
+- Triggers revision loop when verdict is `incorrect` or `incomplete` (if loops remain)
+
+**Supervisor / Finalizer**
+- Orchestrates the full graph: `load_memory → rewrite_retrieve → answer → evaluate → [conditional] → finalize`
+- Persists session state via checkpointer when `ENABLE_MEMORY=true`
+- Promotes draft answer to final answer; no writes to long-term memory

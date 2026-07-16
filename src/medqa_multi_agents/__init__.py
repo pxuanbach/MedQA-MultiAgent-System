@@ -17,15 +17,16 @@ Public API
 ``workflow``    : supervisor workflow facade
 ``invoke(...)`` : convenience wrapper around ``workflow.invoke``
 """
-from __future__ import annotations
-
 import json
 import os
+from pathlib import Path
 from typing import Any, TypedDict
 
-from langchain_core.language_models import BaseChatModel
-from langchain_openai import ChatOpenAI
-from langgraph.graph import END, START, StateGraph
+from dotenv import load_dotenv
+
+# Load .env file from project root
+_env_path = Path(__file__).parent.parent.parent / ".env"
+load_dotenv(_env_path, override=True)
 
 from medqa_multi_agents.agents.answerer import create_answerer_agent
 from medqa_multi_agents.agents.evaluator import create_evaluator_agent
@@ -37,13 +38,30 @@ from medqa_multi_agents.memory import (
     get_checkpointer,
     long_term_memory,
 )
+import sys
+
+from medqa_multi_agents.trace import _Colours, get_trace_logger
+
+
+def _truncate(s: str, max_len: int) -> str:
+    """Truncate string for logging, adding ellipsis if needed."""
+    s = s.replace("\n", " ").strip()
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 3] + "..."
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration (OpenAI-compatible)
 # ---------------------------------------------------------------------------
-LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", "http://localhost:1234/v1")
-LM_STUDIO_MODEL = os.environ.get("LM_STUDIO_MODEL", "qwen/qwen3-8b")
+OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "http://localhost:1234/v1")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "not-needed")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "qwen2.5-7b-instruct-1m")
 MAX_REVISION_LOOPS = int(os.environ.get("MAX_REVISION_LOOPS", "2"))
+
+from langchain_core.language_models import BaseChatModel
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, START, StateGraph
+
 
 # ---------------------------------------------------------------------------
 # Shared model (one per process to avoid GPU OOM on re-load)
@@ -55,11 +73,11 @@ def _get_model() -> BaseChatModel:
     global _model
     if _model is None:
         _model = ChatOpenAI(
-            base_url=LM_STUDIO_URL,
-            api_key="lm-studio",
-            model=LM_STUDIO_MODEL,
+            base_url=OPENAI_BASE_URL,
+            api_key=OPENAI_API_KEY,
+            model=OPENAI_MODEL,
             temperature=0,
-            max_tokens=1024,
+            max_tokens=4096,
         )
     return _model
 
@@ -67,21 +85,23 @@ def _get_model() -> BaseChatModel:
 # ---------------------------------------------------------------------------
 # Shared tools (one per process)
 # ---------------------------------------------------------------------------
-_retrieve_documents = None
-_retrieve_context = None
-_answer_question = None
-_evaluate_answer = None
+_tools: tuple | None = None
 
 
 def _get_tools():
-    global _retrieve_documents, _retrieve_context, _answer_question, _evaluate_answer
-    if _retrieve_documents is None:
+    """Return cached (retrieve_documents, retrieve_context, answer_question, evaluate_answer).
+
+    Tools are created once per process to avoid redundant model re-wrapping.
+    """
+    global _tools
+    if _tools is None:
         model = _get_model()
-        _retrieve_documents = create_rewriter_agent(model)
-        _retrieve_context = create_retriever_agent(model)
-        _answer_question = create_answerer_agent(model)
-        _evaluate_answer = create_evaluator_agent(model)
-    return _retrieve_documents, _retrieve_context, _answer_question, _evaluate_answer
+        retrieve_documents = create_rewriter_agent(model)
+        retrieve_context = create_retriever_agent(model, top_k=3)
+        answer_question = create_answerer_agent(model)
+        evaluate_answer = create_evaluator_agent(model)
+        _tools = (retrieve_documents, retrieve_context, answer_question, evaluate_answer)
+    return _tools
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +193,7 @@ def _node_rewrite_retrieve(state: State) -> dict:
     into the rewriter prompt to guide query construction.
     """
     retrieve_documents, retrieve_context, _, _ = _get_tools()
+    logger = get_trace_logger()
 
     # Build augmented question string for the rewriter
     question = state["question"]
@@ -184,8 +205,37 @@ def _node_rewrite_retrieve(state: State) -> dict:
         memory_hint = _format_memory_section(combined, "Retrieval Planning")
 
     rewriter_input = question if not memory_hint else f"{question}\n{memory_hint}"
-    rewritten = retrieve_documents.invoke(rewriter_input)
-    context = retrieve_context.invoke(rewritten)
+
+    # Log rewriter start
+    logger.log_agent_start("rewriter", rewriter_input)
+    rewritten_raw = retrieve_documents.invoke(rewriter_input)
+    # Parse JSON response: {"query": ..., "reasoning": ...}
+    try:
+        rewritten_parsed = json.loads(rewritten_raw)
+        rewritten = rewritten_parsed.get("query", rewritten_raw)
+        rewriter_reasoning = rewritten_parsed.get("reasoning", "")
+    except (json.JSONDecodeError, TypeError, AttributeError) as exc:
+        import sys
+        print(f"[WARNING] Rewriter returned unparseable JSON ({exc}): {_truncate(rewritten_raw, 80)}", file=sys.stderr)
+        rewritten = rewritten_raw
+        rewriter_reasoning = ""
+    logger.log_agent_end("rewriter", output=rewritten, reasoning=rewriter_reasoning)
+
+    # Log retriever start
+    logger.log_agent_start("retriever", rewritten)
+    retriever_raw = retrieve_context.invoke(rewritten)
+
+    # Parse JSON response: {"context": ..., "chunks": [...]}
+    try:
+        retriever_parsed = json.loads(retriever_raw)
+        context = retriever_parsed.get("context", retriever_raw)
+        chunks_info = retriever_parsed.get("chunks", [])
+    except Exception:
+        context = retriever_raw
+        chunks_info = []
+
+    logger.log_agent_end("retriever", output=context, chunks=chunks_info)
+
     return {
         "rewritten_query": rewritten,
         "context": context,
@@ -204,6 +254,7 @@ def _node_answer(state: State) -> dict:
     Increments revision_count if this is a revision loop.
     """
     _, _, answer_question_tool, _ = _get_tools()
+    logger = get_trace_logger()
 
     question = state["question"]
     context = state["context"]
@@ -215,10 +266,22 @@ def _node_answer(state: State) -> dict:
         memory_hint = _format_memory_section(combined, "Reasoning")
 
     augmented_question = question if not memory_hint else f"{question}\n{memory_hint}"
-    draft = answer_question_tool.invoke({
+
+    logger.log_agent_start("answerer", f"Context: {context[:300]}...\nQuestion: {question}")
+    answer_raw = answer_question_tool.invoke({
         "context": context,
         "question": augmented_question,
     })
+    # Parse JSON response: {"answer": ..., "reasoning": ...}
+    try:
+        answer_parsed = json.loads(answer_raw)
+        draft = answer_parsed.get("answer", answer_raw)
+        answerer_reasoning = answer_parsed.get("reasoning", "")
+    except Exception:
+        draft = answer_raw
+        answerer_reasoning = ""
+    logger.log_agent_end("answerer", output=draft, reasoning=answerer_reasoning)
+
     update = {"draft_answer": draft}
 
     # Increment revision_count if coming from a failed evaluation
@@ -244,6 +307,7 @@ def _node_evaluate(state: State) -> dict:
     When ENABLE_MEMORY=true, injects verifier_memory rules into the prompt.
     """
     _, _, _, evaluate_tool = _get_tools()
+    logger = get_trace_logger()
 
     question = state["question"]
     memory_hint = ""
@@ -254,15 +318,25 @@ def _node_evaluate(state: State) -> dict:
         memory_hint = _format_memory_section(combined, "Verification")
 
     augmented_question = question if not memory_hint else f"{question}\n{memory_hint}"
+
+    logger.log_agent_start("evaluator", f"Draft: {state['draft_answer'][:200]}...")
     raw = evaluate_tool.invoke({
         "draft_answer": state["draft_answer"],
         "question": augmented_question,
         "context": state["context"],
     })
     parsed = json.loads(raw)
+    verdict = parsed.get("verdict", "")
+    evaluator_reasoning = parsed.get("reasoning", "")
+    logger.log_agent_end("evaluator", output=f"verdict={verdict}", reasoning=evaluator_reasoning)
+
+    # Log revision loop if needed
+    if verdict in ("incorrect", "incomplete") and state["revision_count"] < MAX_REVISION_LOOPS:
+        logger.log_revision(state["revision_count"] + 1, verdict)
+
     return {
         "evaluation_result": raw,
-        "evaluation_reasoning": parsed.get("reasoning", ""),
+        "evaluation_reasoning": evaluator_reasoning,
     }
 
 
@@ -276,7 +350,13 @@ def _node_finalize(state: State) -> dict:
 
     Long-term memory is read-only — we do NOT write predictions back to memory.
     """
+    logger = get_trace_logger()
     final = state["draft_answer"]
+    revision_count = state.get("revision_count", 0)
+    if revision_count > 0:
+        logger.log_revision(revision_count, "finalized")
+    print(f"\n{_Colours.BOLD}{_Colours.FINAL}[FINAL ANSWER]{_Colours.RESET} {final}\n",
+          file=sys.stdout)
     return {"final_answer": final}
 
 
@@ -288,11 +368,18 @@ def _node_finalize(state: State) -> dict:
 def _route_after_evaluate(state: State) -> str:
     """Conditional edge: loop back to answer if revision slots remain."""
     verdict_raw = state.get("evaluation_result", "")
-    try:
-        parsed = json.loads(verdict_raw)
-        verdict = parsed.get("verdict", "").lower()
-    except Exception:
-        verdict = ""
+    verdict = ""
+    if verdict_raw:
+        try:
+            parsed = json.loads(verdict_raw)
+            verdict = parsed.get("verdict", "").lower()
+        except (json.JSONDecodeError, TypeError, AttributeError) as exc:
+            import sys
+            print(
+                f"[WARNING] Evaluator returned unparseable evaluation_result "
+                f"({exc}): {_truncate(verdict_raw, 80)}",
+                file=sys.stderr,
+            )
 
     if verdict in ("incorrect", "incomplete") and state["revision_count"] < MAX_REVISION_LOOPS:
         return "answer"
@@ -352,9 +439,20 @@ class Workflow:
         return self._graph.nodes
 
     def invoke(self, input_: dict[str, Any], config: dict[str, Any] | None = None, **kwargs):
+        logger = get_trace_logger()
+        question = input_.get("question", "")
+        trace_id = logger.start_trace(question)
+
         initial_state, thread_id = _prepare_initial_state(input_)
         next_config = build_thread_config(config, thread_id=thread_id)
-        return self._graph.invoke(initial_state, config=next_config, **kwargs)
+
+        result = self._graph.invoke(initial_state, config=next_config, **kwargs)
+
+        final_answer = result.get("final_answer", "")
+        revision_count = result.get("revision_count", 0)
+        logger.end_trace(final_answer, revision_count)
+
+        return result
 
     def __getattr__(self, name: str):
         return getattr(self._graph, name)
@@ -390,4 +488,4 @@ def invoke(question: str, *, thread_id: str | None = None) -> str:
     return result["final_answer"]
 
 
-__all__ = ["ENABLE_MEMORY", "workflow", "invoke", "State"]
+__all__ = ["ENABLE_MEMORY", "workflow", "invoke", "State", "get_trace_logger"]

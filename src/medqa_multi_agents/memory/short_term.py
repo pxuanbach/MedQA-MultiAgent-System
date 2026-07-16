@@ -21,7 +21,14 @@ def _read_enable_memory() -> bool:
         return False
     if raw in TRUE_VALUES:
         return True
-    return True
+    # Unknown value — default to disabled (safe fallback)
+    import sys
+    print(
+        f"[WARNING] Unknown ENABLE_MEMORY value {raw!r}; defaulting to false. "
+        f"Valid values are: {TRUE_VALUES | FALSE_VALUES}",
+        file=sys.stderr,
+    )
+    return False
 
 
 ENABLE_MEMORY = _read_enable_memory()

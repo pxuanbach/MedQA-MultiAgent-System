@@ -17,6 +17,7 @@ class RewrittenQuery(BaseModel):
     """Structured output schema for the rewriter agent."""
 
     query: str
+    reasoning: str = ""
 
 
 def create_rewriter_agent(
@@ -48,6 +49,7 @@ def create_rewriter_agent(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": question},
         ])
-        return response.query
+        import json
+        return json.dumps({"query": response.query, "reasoning": response.reasoning})
 
     return retrieve_documents
