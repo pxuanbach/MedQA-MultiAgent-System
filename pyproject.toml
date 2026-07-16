@@ -1,5 +1,5 @@
 [project]
-name = "pi-agents"
+name = "medqa_multi-agent_system"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"

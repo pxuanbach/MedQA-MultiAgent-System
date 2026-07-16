@@ -21,7 +21,8 @@ Return a JSON object with the following structure:
 
 ```json
 {
-  "answer": "<your generated answer text>"
+  "answer": "<your generated answer text>",
+  "reasoning": "<brief explanation of your reasoning process, key clinical findings, and why you selected this answer>"
 }
 ```
 

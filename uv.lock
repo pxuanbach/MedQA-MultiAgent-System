@@ -2076,6 +2076,76 @@ wheels = [
 ]
 
 [[package]]
+name = "medqa-multi-agent-system"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "accelerate" },
+    { name = "chromadb" },
+    { name = "click" },
+    { name = "fastparquet" },
+    { name = "ipykernel" },
+    { name = "langchain" },
+    { name = "langchain-chroma" },
+    { name = "langchain-community" },
+    { name = "langchain-huggingface" },
+    { name = "langchain-openai" },
+    { name = "langchain-text-splitters" },
+    { name = "langgraph" },
+    { name = "langgraph-checkpoint" },
+    { name = "matplotlib" },
+    { name = "pandas" },
+    { name = "pytest" },
+    { name = "rank-bm25" },
+    { name = "seaborn" },
+    { name = "sentence-transformers" },
+    { name = "spacy" },
+    { name = "torch" },
+    { name = "torchaudio" },
+    { name = "torchvision" },
+    { name = "tqdm" },
+]
+
+[package.optional-dependencies]
+cuda = [
+    { name = "torch" },
+    { name = "torchaudio" },
+    { name = "torchvision" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate", specifier = ">=1.14.0" },
+    { name = "chromadb", specifier = ">=1.0.0" },
+    { name = "click", specifier = ">=8.4.2" },
+    { name = "fastparquet", specifier = ">=2026.5.0" },
+    { name = "ipykernel", specifier = ">=7.3.0" },
+    { name = "langchain", specifier = ">=0.3.0" },
+    { name = "langchain-chroma", specifier = ">=1.0.0" },
+    { name = "langchain-community", specifier = ">=0.3.0" },
+    { name = "langchain-huggingface", specifier = ">=0.1.0" },
+    { name = "langchain-openai", specifier = ">=0.3.0" },
+    { name = "langchain-text-splitters", specifier = ">=0.3.0" },
+    { name = "langgraph", specifier = ">=1.0.0" },
+    { name = "langgraph-checkpoint", specifier = ">=1.0.0" },
+    { name = "matplotlib", specifier = ">=3.11.0" },
+    { name = "pandas", specifier = ">=3.0.4" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "rank-bm25", specifier = ">=0.2.2" },
+    { name = "seaborn", specifier = ">=0.13.2" },
+    { name = "sentence-transformers", specifier = ">=5.6.0" },
+    { name = "spacy", specifier = ">=3.8.14" },
+    { name = "torch", specifier = "==2.11.0" },
+    { name = "torch", marker = "extra == 'cuda'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "medqa-multi-agent-system", extra = "cuda" } },
+    { name = "torchaudio", specifier = "==2.11.0" },
+    { name = "torchaudio", marker = "extra == 'cuda'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "medqa-multi-agent-system", extra = "cuda" } },
+    { name = "torchvision", specifier = "==0.26.0" },
+    { name = "torchvision", marker = "extra == 'cuda'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "medqa-multi-agent-system", extra = "cuda" } },
+    { name = "tqdm", specifier = ">=4.68.3" },
+]
+provides-extras = ["cuda"]
+
+[[package]]
 name = "mmh3"
 version = "5.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2857,76 +2927,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/c3/059298687310d527a58bb01f3b1965787ee3b40dce76752eda8b44e9a2c5/pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523", size = 63772, upload-time = "2023-11-25T06:56:14.81Z" },
 ]
-
-[[package]]
-name = "pi-agents"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "accelerate" },
-    { name = "chromadb" },
-    { name = "click" },
-    { name = "fastparquet" },
-    { name = "ipykernel" },
-    { name = "langchain" },
-    { name = "langchain-chroma" },
-    { name = "langchain-community" },
-    { name = "langchain-huggingface" },
-    { name = "langchain-openai" },
-    { name = "langchain-text-splitters" },
-    { name = "langgraph" },
-    { name = "langgraph-checkpoint" },
-    { name = "matplotlib" },
-    { name = "pandas" },
-    { name = "pytest" },
-    { name = "rank-bm25" },
-    { name = "seaborn" },
-    { name = "sentence-transformers" },
-    { name = "spacy" },
-    { name = "torch" },
-    { name = "torchaudio" },
-    { name = "torchvision" },
-    { name = "tqdm" },
-]
-
-[package.optional-dependencies]
-cuda = [
-    { name = "torch" },
-    { name = "torchaudio" },
-    { name = "torchvision" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "accelerate", specifier = ">=1.14.0" },
-    { name = "chromadb", specifier = ">=1.0.0" },
-    { name = "click", specifier = ">=8.4.2" },
-    { name = "fastparquet", specifier = ">=2026.5.0" },
-    { name = "ipykernel", specifier = ">=7.3.0" },
-    { name = "langchain", specifier = ">=0.3.0" },
-    { name = "langchain-chroma", specifier = ">=1.0.0" },
-    { name = "langchain-community", specifier = ">=0.3.0" },
-    { name = "langchain-huggingface", specifier = ">=0.1.0" },
-    { name = "langchain-openai", specifier = ">=0.3.0" },
-    { name = "langchain-text-splitters", specifier = ">=0.3.0" },
-    { name = "langgraph", specifier = ">=1.0.0" },
-    { name = "langgraph-checkpoint", specifier = ">=1.0.0" },
-    { name = "matplotlib", specifier = ">=3.11.0" },
-    { name = "pandas", specifier = ">=3.0.4" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "rank-bm25", specifier = ">=0.2.2" },
-    { name = "seaborn", specifier = ">=0.13.2" },
-    { name = "sentence-transformers", specifier = ">=5.6.0" },
-    { name = "spacy", specifier = ">=3.8.14" },
-    { name = "torch", specifier = "==2.11.0" },
-    { name = "torch", marker = "extra == 'cuda'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "pi-agents", extra = "cuda" } },
-    { name = "torchaudio", specifier = "==2.11.0" },
-    { name = "torchaudio", marker = "extra == 'cuda'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "pi-agents", extra = "cuda" } },
-    { name = "torchvision", specifier = "==0.26.0" },
-    { name = "torchvision", marker = "extra == 'cuda'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "pi-agents", extra = "cuda" } },
-    { name = "tqdm", specifier = ">=4.68.3" },
-]
-provides-extras = ["cuda"]
 
 [[package]]
 name = "pillow"
