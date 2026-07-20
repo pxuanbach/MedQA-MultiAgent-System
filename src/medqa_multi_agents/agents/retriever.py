@@ -47,24 +47,32 @@ class RetrievedVectorChunks(BaseModel):
 
 
 @tool
-def search_vectorstore(query: str, top_k: int = 3) -> str:
+def search_vectorstore(query: str, top_k: int = 5, skip_ids: list[str] | None = None) -> str:
     """Search the ChromaDB vector store for relevant medical textbook chunks.
 
     Args:
         query: The rewritten search query from the rewriter agent.
         top_k: Number of top chunks to retrieve.
+        skip_ids: List of "source:page" strings to skip (already retrieved).
+            Used by the enrich node to avoid re-retrieving the same chunks.
 
     Returns:
         JSON string with source, page, score, content_preview for each chunk,
         plus a combined_context string.
     """
     vectorstore = _get_vectorstore()
-    results = vectorstore.similarity_search_with_score(query, k=top_k)
+    skip_ids = skip_ids or []
 
-    sources, pages, scores, previews = [], [], [], []
-    texts = []
+    # ChromaDB doesn't support offset natively on similarity_search.
+    # Retrieve top_k + len(skip_ids) and filter out already-retrieved chunks.
+    results = vectorstore.similarity_search_with_score(query, k=top_k + len(skip_ids))
+
+    sources, pages, scores, previews, texts = [], [], [], [], []
     for doc, score in results:
         meta = doc.metadata or {}
+        chunk_id = f"{meta.get('source', 'unknown')}:{meta.get('page', 'unknown')}"
+        if chunk_id in skip_ids:
+            continue
         sources.append(meta.get("source", "unknown"))
         pages.append(meta.get("page", "unknown"))
         scores.append(round(score, 4))
@@ -94,7 +102,7 @@ class RetrievedMemoryRules(BaseModel):
 
 
 @tool
-def search_memory(query: str, agent: str = "retriever", top_k: int = 3) -> str:
+def search_memory(query: str, agent: str = "retriever", top_k: int = 5) -> str:
     """Search the long-term memory rule store for relevant retrieval/planning rules.
 
     Args:

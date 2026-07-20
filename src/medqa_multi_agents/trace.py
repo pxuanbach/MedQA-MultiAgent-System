@@ -28,7 +28,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-LOGS_DIR = Path(__file__).parent.parent.parent.parent / "logs"
+LOGS_DIR = Path(__file__).parent.parent.parent / "logs"
 DEV_TRACES_DIR = LOGS_DIR / "dev_traces"
 OFFICIAL_TRACES_DIR = LOGS_DIR / "official_traces"
 
@@ -73,6 +73,8 @@ class AgentStep:
         reasoning: str = "",
         chunks: list[dict] | None = None,
         timestamp: str | None = None,
+        rubric: dict | None = None,
+        keywords: list[str] | None = None,
     ):
         self.agent_name = agent_name
         self.input = input_
@@ -80,9 +82,11 @@ class AgentStep:
         self.reasoning = reasoning
         self.chunks = chunks or []
         self.timestamp = timestamp or datetime.utcnow().isoformat() + "Z"
+        self.rubric = rubric
+        self.keywords = keywords or []
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d = {
             "agent": self.agent_name,
             "input": self.input,
             "output": self.output,
@@ -90,6 +94,11 @@ class AgentStep:
             "chunks": self.chunks,
             "timestamp": self.timestamp,
         }
+        if self.rubric is not None:
+            d["rubric"] = self.rubric
+        if self.keywords:
+            d["keywords"] = self.keywords
+        return d
 
 
 class Trace:
@@ -191,6 +200,8 @@ class TraceLogger:
         reasoning: str = "",
         chunks: list[dict] | None = None,
         colour: str | None = None,
+        rubric: dict | None = None,
+        keywords: list[str] | None = None,
     ):
         """Log the end of an agent invocation (console + memory for trace)."""
         c = colour or _agent_colour(agent_name)
@@ -200,6 +211,9 @@ class TraceLogger:
                 f"{_truncate(output, 200)}",
                 file=sys.stdout,
             )
+            if rubric:
+                scores = [f"{k}={v}" for k, v in rubric.items() if k != "reasoning"]
+                print(f"{c}  Rubric: {', '.join(scores)}{_Colours.RESET}")
             if reasoning:
                 print(
                     f"{c}  Reasoning: {_truncate(reasoning, 500)}{_Colours.RESET}",
@@ -211,6 +225,8 @@ class TraceLogger:
                     score_str = f" score={chunk['score']}" if "score" in chunk else ""
                     print(f"{c}    - [{chunk['source']}] p.{chunk['page']}{score_str}: "
                           f"{chunk['content_preview'][:100]}...{_Colours.RESET}")
+            if keywords:
+                print(f"{c}  Keywords: {', '.join(keywords)}{_Colours.RESET}")
         with self._lock:
             if self._trace is not None:
                 self._trace.add_step(
@@ -219,6 +235,8 @@ class TraceLogger:
                         input_="",  # input logged at start
                         output=output,
                         reasoning=reasoning,
+                        rubric=rubric,
+                        keywords=keywords,
                     )
                 )
 

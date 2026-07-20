@@ -134,7 +134,7 @@ agent = _Agent("V0")
 answer = invoke("""
 A 40-year-old woman presents with difficulty falling asleep, diminished appetite, and tiredness for the past 6 weeks. She says that, despite going to bed early at night, she is unable to fall asleep. She denies feeling anxious or having disturbing thoughts while in bed. Even when she manages to fall asleep, she wakes up early in the morning and is unable to fall back asleep. She says she has grown increasingly irritable and feels increasingly hopeless, and her concentration and interest at work have diminished. The patient denies thoughts of suicide or death. Because of her diminished appetite, she has lost 4 kg (8.8 lb) in the last few weeks and has started drinking a glass of wine every night instead of eating dinner. She has no significant past medical history and is not on any medications. Which of the following is the best course of treatment in this patient?
 
-options: {"A": "Diazepam", "B": "Paroxetine", "C": "Zolpidem", "D": "Trazodone"}
+options: {"A": "Diazepam", "B": "St. John’s Wort", "C": "Paroxetine", "D": "Zolpidem", "E": "Trazodone"}
 """)
 
 print("===" * 10, "\n")

@@ -57,6 +57,7 @@ OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "http://localhost:1234/v1")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "not-needed")
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "qwen2.5-7b-instruct-1m")
 MAX_REVISION_LOOPS = int(os.environ.get("MAX_REVISION_LOOPS", "2"))
+MAX_RETRIEVAL_LOOPS = int(os.environ.get("MAX_RETRIEVAL_LOOPS", "2"))
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
@@ -77,7 +78,7 @@ def _get_model() -> BaseChatModel:
             api_key=OPENAI_API_KEY,
             model=OPENAI_MODEL,
             temperature=0,
-            max_tokens=4096,
+            max_tokens=8192,
         )
     return _model
 
@@ -119,6 +120,8 @@ class State(TypedDict):
     revision_count: int
     evaluation_reasoning: str
     final_answer: str
+    retrieval_count: int           # how many retrieval rounds (initial + enrichments)
+    retrieved_chunk_ids: list[str]  # "source:page" of chunks already retrieved (dedup)
     # Long-term memory fields (V3 only; empty lists in V2)
     global_memory: list[dict]       # shared rules for all agents
     retrieval_memory: list[dict]    # retrieval_planner rules
@@ -214,31 +217,99 @@ def _node_rewrite_retrieve(state: State) -> dict:
         rewritten_parsed = json.loads(rewritten_raw)
         rewritten = rewritten_parsed.get("query", rewritten_raw)
         rewriter_reasoning = rewritten_parsed.get("reasoning", "")
+        rewriter_keywords = rewritten_parsed.get("keywords", [])
     except (json.JSONDecodeError, TypeError, AttributeError) as exc:
         import sys
         print(f"[WARNING] Rewriter returned unparseable JSON ({exc}): {_truncate(rewritten_raw, 80)}", file=sys.stderr)
         rewritten = rewritten_raw
         rewriter_reasoning = ""
-    logger.log_agent_end("rewriter", output=rewritten, reasoning=rewriter_reasoning)
+        rewriter_keywords = []
+    logger.log_agent_end("rewriter", output=rewritten, reasoning=rewriter_reasoning, keywords=rewriter_keywords)
 
     # Log retriever start
     logger.log_agent_start("retriever", rewritten)
     retriever_raw = retrieve_context.invoke(rewritten)
 
-    # Parse JSON response: {"context": ..., "chunks": [...]}
+    # Parse JSON response: {"context": ..., "chunks": [...], "sources": [...], "pages": [...]}
     try:
         retriever_parsed = json.loads(retriever_raw)
         context = retriever_parsed.get("context", retriever_raw)
+        sources = retriever_parsed.get("sources", [])
+        pages = retriever_parsed.get("pages", [])
         chunks_info = retriever_parsed.get("chunks", [])
+        chunk_ids = [f"{s}:{p}" for s, p in zip(sources, pages)]
     except Exception:
         context = retriever_raw
         chunks_info = []
+        chunk_ids = []
 
     logger.log_agent_end("retriever", output=context, chunks=chunks_info)
 
     return {
         "rewritten_query": rewritten,
         "context": context,
+        "retrieved_chunk_ids": chunk_ids,
+    }
+
+
+def _node_retrieve_enrich(state: State) -> dict:
+    """Retrieve additional context when the current context was insufficient.
+
+    Uses skip_ids to avoid re-retrieving chunks already seen in prior rounds.
+    Appends new chunks to existing context to address gaps identified
+    by the evaluator. Increments retrieval_count to track enrichment rounds.
+    """
+    _, retrieve_context, _, _ = _get_tools()
+    logger = get_trace_logger()
+
+    evaluation_reasoning = state.get("evaluation_reasoning", "")
+    retrieval_count = state.get("retrieval_count", 1)
+    skip_ids = state.get("retrieved_chunk_ids", [])
+
+    # Build a supplemental query from what the evaluator found missing.
+    # Include already-retrieved chunk IDs so the retriever agent can skip them.
+    already_retrieved = ", ".join(skip_ids) if skip_ids else "none"
+    enrich_query = (
+        f"{state['rewritten_query']}\n\n"
+        f"Evaluator noted (address these gaps): {evaluation_reasoning}\n\n"
+        f"Already retrieved — do NOT retrieve these chunks again: {already_retrieved}"
+    )
+
+    logger.log_agent_start("retriever_enrich", f"Enriching with skip_ids={len(skip_ids)}: {enrich_query[:200]}...")
+
+    # Pass skip_ids to avoid re-retrieving the same chunks
+    retriever_raw = retrieve_context.invoke(enrich_query)
+
+    try:
+        retriever_parsed = json.loads(retriever_raw)
+        new_context = retriever_parsed.get("context", retriever_raw)
+        sources = retriever_parsed.get("sources", [])
+        pages = retriever_parsed.get("pages", [])
+        chunks_info = retriever_parsed.get("chunks", [])
+        new_chunk_ids = [f"{s}:{p}" for s, p in zip(sources, pages)]
+    except Exception:
+        new_context = retriever_raw
+        chunks_info = []
+        new_chunk_ids = []
+
+    # Append new context to existing
+    existing_context = state.get("context", "")
+    combined_context = (
+        f"{existing_context}\n\n"
+        f"--- Additional context (retrieval round {retrieval_count + 1}) ---\n\n"
+        f"{new_context}"
+    )
+
+    logger.log_agent_end(
+        "retriever_enrich",
+        output=f"Added {len(new_chunk_ids)} new chunks (total {len(skip_ids) + len(new_chunk_ids)}), context length: {len(combined_context)}",
+        chunks=chunks_info,
+    )
+
+    return {
+        "context": combined_context,
+        "retrieval_count": retrieval_count + 1,
+        "retrieved_chunk_ids": skip_ids + new_chunk_ids,
     }
 
 
@@ -328,7 +399,18 @@ def _node_evaluate(state: State) -> dict:
     parsed = json.loads(raw)
     verdict = parsed.get("verdict", "")
     evaluator_reasoning = parsed.get("reasoning", "")
-    logger.log_agent_end("evaluator", output=f"verdict={verdict}", reasoning=evaluator_reasoning)
+    # Extract rubric scores for trace logging
+    rubric_scores = {
+        k: parsed[k]
+        for k in ("correctness", "completeness", "evidence_alignment", "distractor_elimination", "evaluator_confidence")
+        if k in parsed
+    }
+    logger.log_agent_end(
+        "evaluator",
+        output=f"verdict={verdict}",
+        reasoning=evaluator_reasoning,
+        rubric=rubric_scores,
+    )
 
     # Log revision loop if needed
     if verdict in ("incorrect", "incomplete") and state["revision_count"] < MAX_REVISION_LOOPS:
@@ -366,7 +448,17 @@ def _node_finalize(state: State) -> dict:
 
 
 def _route_after_evaluate(state: State) -> str:
-    """Conditional edge: loop back to answer if revision slots remain."""
+    """Conditional routing after evaluation.
+
+    Flow:
+      verdict=incomplete + retrieval_count < MAX_RETRIEVAL_LOOPS
+        → retrieve_enrich (get more/better context)
+      verdict=incorrect + revision_count < MAX_REVISION_LOOPS
+        → answer (re-answer with same context, different reasoning attempt)
+      verdict=incomplete but retrieval exhausted
+        → answer (make the best of what we have)
+      otherwise → finalize
+    """
     verdict_raw = state.get("evaluation_result", "")
     verdict = ""
     if verdict_raw:
@@ -381,8 +473,19 @@ def _route_after_evaluate(state: State) -> str:
                 file=sys.stderr,
             )
 
-    if verdict in ("incorrect", "incomplete") and state["revision_count"] < MAX_REVISION_LOOPS:
-        return "answer"
+    retrieval_count = state.get("retrieval_count", 1)
+    revision_count = state.get("revision_count", 0)
+
+    if verdict == "incomplete":
+        if retrieval_count < MAX_RETRIEVAL_LOOPS:
+            return "retrieve_enrich"
+        if revision_count < MAX_REVISION_LOOPS:
+            return "answer"
+
+    if verdict == "incorrect":
+        if revision_count < MAX_REVISION_LOOPS:
+            return "answer"
+
     return "finalize"
 
 
@@ -399,15 +502,34 @@ def _build_graph():
     builder.add_node("rewrite_retrieve", _node_rewrite_retrieve)
     builder.add_node("answer", _node_answer)
     builder.add_node("evaluate", _node_evaluate)
+    builder.add_node("retrieve_enrich", _node_retrieve_enrich)
     builder.add_node("finalize", _node_finalize)
 
     # Edges
-    # START -> load_memory -> rewrite_retrieve -> answer -> evaluate -> finalize -> END
+    #
+    #  START → load_memory → rewrite_retrieve → answer
+    #                                           ↓
+    #                                      evaluate
+    #                                           ↓
+    #                         ┌────────────────┴────────────────┐
+    #                         ↓                                 ↓
+    #                  [incomplete]?                    [incorrect]?
+    #                         ↓                                 ↓
+    #              retrieve_enrich ──→ answer          answer
+    #                         ↓                    (same context, new reasoning)
+    #                   (enriched)                         ↓
+    #                         └──────── evaluate ◄─────────┘
+    #                                           ↓
+    #                                    [correct / done]
+    #                                           ↓
+    #                                       finalize
+    #
     builder.add_edge(START, "load_memory")
     builder.add_edge("load_memory", "rewrite_retrieve")
     builder.add_edge("rewrite_retrieve", "answer")
     builder.add_edge("answer", "evaluate")
     builder.add_conditional_edges("evaluate", _route_after_evaluate)
+    builder.add_edge("retrieve_enrich", "answer")
     builder.add_edge("finalize", END)
 
     checkpointer = get_checkpointer()
@@ -420,6 +542,8 @@ def _prepare_initial_state(input_: dict[str, Any]) -> tuple[dict[str, Any], str 
     initial_state = dict(input_)
     thread_id = initial_state.pop("thread_id", None)
     initial_state.setdefault("revision_count", 0)
+    initial_state.setdefault("retrieval_count", 1)  # first retrieval = round 1
+    initial_state.setdefault("retrieved_chunk_ids", [])  # track seen chunks to avoid re-retrieval
     # Ensure memory fields are present (default empty)
     initial_state.setdefault("global_memory", [])
     initial_state.setdefault("retrieval_memory", [])
@@ -481,6 +605,7 @@ def invoke(question: str, *, thread_id: str | None = None) -> str:
     initial_state = {
         "question": question,
         "revision_count": 0,
+        "retrieval_count": 1,
     }
     if thread_id is not None:
         initial_state["thread_id"] = thread_id
