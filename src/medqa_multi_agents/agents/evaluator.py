@@ -4,7 +4,7 @@ from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 EVALUATOR_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "evaluator.md"
 
@@ -13,11 +13,47 @@ def _load_evaluator_prompt() -> str:
     return EVALUATOR_PROMPT_PATH.read_text(encoding="utf-8")
 
 
-class EvaluationResult(BaseModel):
-    """Structured output schema for the evaluator agent."""
+class RubricScores(BaseModel):
+    """Per-criterion rubric scores (0–3 each).
 
+    Scoring guide
+    ------------
+    correctness  : 0 = critical medical errors, 1 = mostly wrong,
+                   2 = mostly correct with minor inaccuracies, 3 = fully correct
+    completeness : 0 = missing everything, 1 = partially addresses question,
+                   2 = mostly complete, 3 = fully addresses all aspects
+    evidence_alignment : 0 = no connection to vignette, 1 = vague/weak connection,
+                        2 = moderate explicit connection, 3 = strong explicit link
+    distractor_elimination : 0 = ignores distractors, 1 = mentions but unclear,
+                             2 = good comparison, 3 = excellent why-chosen > why-not
+    """
+
+    correctness: int = Field(..., ge=0, le=3, description="Medical accuracy score (0-3)")
+    completeness: int = Field(..., ge=0, le=3, description="Addresses all question aspects (0-3)")
+    evidence_alignment: int = Field(
+        ..., ge=0, le=3, description="Explicitly links vignette findings to answer (0-3)"
+    )
+    distractor_elimination: int = Field(
+        ..., ge=0, le=3, description="Explains why chosen option beats distractors (0-3)"
+    )
+
+
+class EvaluationResult(BaseModel):
+    """Structured output schema for the evaluator agent with rubric scoring."""
+
+    # Per-criterion scores
+    correctness: int = Field(..., ge=0, le=3)
+    completeness: int = Field(..., ge=0, le=3)
+    evidence_alignment: int = Field(..., ge=0, le=3)
+    distractor_elimination: int = Field(..., ge=0, le=3)
+
+    # Derived overall verdict (must agree with rubric)
     verdict: str  # "correct" | "incorrect" | "incomplete"
-    reasoning: str
+    reasoning: str  # per-criterion explanation (which criterion failed and why)
+    evaluator_confidence: float = Field(
+        ..., ge=0.0, le=1.0,
+        description="How confident the evaluator is in this judgment (0.0-1.0)"
+    )
 
 
 def create_evaluator_agent(
@@ -36,7 +72,11 @@ def create_evaluator_agent(
     """
 
     @tool
-    def evaluate_answer(draft_answer: str, question: str, context: str) -> str:
+    def evaluate_answer(
+        draft_answer: str,
+        question: str,
+        context: str,
+    ) -> str:
         """Evaluate whether the answerer agent's draft answer is correct and complete.
 
         Args:
@@ -45,8 +85,8 @@ def create_evaluator_agent(
             context: The textbook context used to generate the draft answer.
 
         Returns:
-            A JSON string with "verdict" ("correct" | "incorrect" | "incomplete")
-            and "reasoning" explaining the verdict.
+            A JSON string with per-criterion rubric scores (0-3 each),
+            an overall "verdict", "reasoning", and "evaluator_confidence".
         """
         system_prompt = _load_evaluator_prompt()
         user_message = (
@@ -60,8 +100,13 @@ def create_evaluator_agent(
         ])
         import json
         return json.dumps({
+            "correctness": response.correctness,
+            "completeness": response.completeness,
+            "evidence_alignment": response.evidence_alignment,
+            "distractor_elimination": response.distractor_elimination,
             "verdict": response.verdict,
             "reasoning": response.reasoning,
+            "evaluator_confidence": response.evaluator_confidence,
         })
 
     return evaluate_answer

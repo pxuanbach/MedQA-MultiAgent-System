@@ -32,15 +32,38 @@ def evaluator_tool(lmstudio_model):
 # ---------------------------------------------------------------------------
 
 class TestEvaluatorSchema:
-    def test_evaluation_result_has_verdict_field(self):
-        er = EvaluationResult(verdict="correct", reasoning="Looks good.")
+    def test_evaluation_result_has_all_rubric_fields(self):
+        er = EvaluationResult(
+            correctness=3,
+            completeness=2,
+            evidence_alignment=2,
+            distractor_elimination=1,
+            verdict="correct",
+            reasoning="Mostly correct but didn't rule out distractors well.",
+            evaluator_confidence=0.75,
+        )
         assert er.verdict == "correct"
-        assert er.reasoning == "Looks good."
+        assert er.correctness == 3
+        assert er.completeness == 2
+        assert er.evidence_alignment == 2
+        assert er.distractor_elimination == 1
+        assert er.evaluator_confidence == 0.75
 
     def test_evaluation_result_serialises_to_dict(self):
-        er = EvaluationResult(verdict="incomplete", reasoning="Missing key info.")
+        er = EvaluationResult(
+            correctness=1,
+            completeness=1,
+            evidence_alignment=0,
+            distractor_elimination=0,
+            verdict="incorrect",
+            reasoning="Medical errors and no vignette connection.",
+            evaluator_confidence=0.9,
+        )
         d = er.model_dump()
-        assert d == {"verdict": "incomplete", "reasoning": "Missing key info."}
+        assert d["verdict"] == "incorrect"
+        assert d["correctness"] == 1
+        assert d["evidence_alignment"] == 0
+        assert d["evaluator_confidence"] == 0.9
 
     def test_load_evaluator_prompt_returns_non_empty_string(self):
         prompt = _load_evaluator_prompt()
@@ -64,8 +87,8 @@ class TestEvaluatorToolSignature:
 # ---------------------------------------------------------------------------
 
 class TestEvaluatorIntegration:
-    def test_evaluate_answer_direct(self, lmstudio_model):
-        """End-to-end: evaluator judges a draft answer given question and context."""
+    def test_evaluate_answer_returns_rubric_scores(self, lmstudio_model):
+        """End-to-end: evaluator returns per-criterion rubric scores."""
         tool = create_evaluator_agent(model=lmstudio_model)
         question = "What is the mechanism of action of aspirin?"
         context = (
@@ -84,12 +107,21 @@ class TestEvaluatorIntegration:
         })
         assert isinstance(result, str)
         parsed = json.loads(result)
+        # Rubric fields
+        assert "correctness" in parsed
+        assert "completeness" in parsed
+        assert "evidence_alignment" in parsed
+        assert "distractor_elimination" in parsed
+        assert "evaluator_confidence" in parsed
+        # Each score should be 0-3
+        for key in ("correctness", "completeness", "evidence_alignment", "distractor_elimination"):
+            assert 0 <= parsed[key] <= 3, f"{key} out of range: {parsed[key]}"
+        assert 0.0 <= parsed["evaluator_confidence"] <= 1.0
         assert parsed["verdict"] in ("correct", "incorrect", "incomplete")
-        assert "reasoning" in parsed
         assert len(parsed["reasoning"]) > 0
 
-    def test_evaluate_answer_invocation_returns_json_string(self, evaluator_tool):
-        """Tool invoke returns a JSON string with verdict and reasoning."""
+    def test_evaluate_answer_with_minimal_input(self, evaluator_tool):
+        """Evaluator judges based only on question, context, and draft answer."""
         question = "What are the side effects of metformin?"
         context = (
             "Metformin is a biguanide that decreases hepatic glucose production "
@@ -102,10 +134,11 @@ class TestEvaluatorIntegration:
             "question": question,
             "context": context,
         })
-        assert isinstance(result, str)
         parsed = json.loads(result)
-        assert "verdict" in parsed
-        assert "reasoning" in parsed
+        assert "correctness" in parsed
+        assert "completeness" in parsed
+        # completeness should be low since draft didn't mention side effects
+        assert parsed["completeness"] <= 2
 
     def test_verdict_incomplete_when_context_insufficient(self, lmstudio_model):
         """Evaluator marks incomplete when draft answer doesn't use full context."""
@@ -124,3 +157,5 @@ class TestEvaluatorIntegration:
         })
         parsed = json.loads(result)
         assert parsed["verdict"] in ("correct", "incorrect", "incomplete")
+        # completeness should be low for such a minimal answer
+        assert parsed["completeness"] <= 1

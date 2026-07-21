@@ -3,6 +3,7 @@
 from medqa_multi_agents.agents.answerer import Answer, create_answerer_agent
 from medqa_multi_agents.agents.evaluator import (
     EvaluationResult,
+    RubricScores,
     create_evaluator_agent,
 )
 from medqa_multi_agents.agents.retriever import (
@@ -14,6 +15,7 @@ from medqa_multi_agents.agents.rewriter import RewrittenQuery, create_rewriter_a
 __all__ = [
     "Answer",
     "EvaluationResult",
+    "RubricScores",
     "RetrievedContext",
     "RewrittenQuery",
     "create_answerer_agent",

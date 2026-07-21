@@ -18,6 +18,7 @@ class RewrittenQuery(BaseModel):
 
     query: str
     reasoning: str = ""
+    keywords: list[str] = []
 
 
 def create_rewriter_agent(
@@ -50,6 +51,10 @@ def create_rewriter_agent(
             {"role": "user", "content": question},
         ])
         import json
-        return json.dumps({"query": response.query, "reasoning": response.reasoning})
+        return json.dumps({
+            "query": response.query,
+            "reasoning": response.reasoning,
+            "keywords": response.keywords,
+        })
 
     return retrieve_documents

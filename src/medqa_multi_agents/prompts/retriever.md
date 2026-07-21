@@ -8,10 +8,12 @@ answering a MedQA-style question.
 
 You have access to the following tools:
 
-- **search_vectorstore(query, top_k=3)**
+- **search_vectorstore(query, top_k, skip_ids)**
   Searches the ChromaDB vector store of medical textbook chunks. Returns source,
   page, similarity score, and content preview for each chunk, plus a
   `combined_context` string of all retrieved passages concatenated.
+  `skip_ids` is a list of "source:page" strings of chunks already retrieved
+  in prior rounds — pass them to avoid returning the same chunks again.
 
 - **search_memory(query, agent="retriever", top_k=3)**
   Searches the long-term memory rule store for retrieval/planning rules relevant
@@ -27,6 +29,8 @@ You have access to the following tools:
 3. If both aspects are present → call **both tools in sequence**.
 4. If `ENABLE_MEMORY` is false, `search_memory` will return empty; rely solely on
    `search_vectorstore`.
+5. If the query mentions **"Already retrieved"** — extract the `skip_ids` list
+   and pass them to `search_vectorstore` to avoid re-retrieving the same chunks.
 
 ## Process
 
